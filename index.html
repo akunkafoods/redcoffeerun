@@ -1130,50 +1130,44 @@ function gameLoop() {
 
 let audioCtx = null;
 let sfxGain = null;
-let audioUnlocked = false;
+let audioReady = false;
 let musicPlaying = false;
 let musicNodes = [];
 let musicInterval = null;
 let soundEnabled = true;
 
-// Tiny silent MP3 — playing an <audio> element on iOS switches the audio
-// session to "playback" mode, which bypasses the hardware mute switch
-// and fully unlocks Web Audio API. A silent oscillator alone is NOT enough.
-const SILENT_MP3 = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAYYoRwVHAAAAAAD/+1DEAAAH2ANoUAAAIsoKbhpIAABEAJBAgAABADCYHBx8oc/KHN+UOf/5Q5/ygIAg+D4Pg+BAEHwfB8HwfB8EAQBB8HwfB8HwIAgCAIAgCDv//6gfUAAEZGMjIAAAA//tQxBEAAADSAAAAAAAAANIAAAAASZJkAAJnOc5z//Oc5znOc5znOf///nOc5znOc5znOc////+c5znOc5znOc5z//////5znOc5znOc5znOf///////Oc5znOc5znOcwAAAAA';
-let silentAudio = null;
+// Fully unlock audio — MUST be called from a user gesture (click/tap).
+// Returns a Promise that resolves when audio is truly ready to play.
+async function ensureAudio() {
+  if (audioReady && audioCtx && audioCtx.state === 'running') return;
 
-function initAudio() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     sfxGain = audioCtx.createGain();
     sfxGain.gain.value = 0.5;
     sfxGain.connect(audioCtx.destination);
   }
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
+
+  // AWAIT resume — this is the key fix. Without await, the context
+  // is still suspended when we try to schedule audio.
+  if (audioCtx.state !== 'running') {
+    await audioCtx.resume();
   }
-  if (!audioUnlocked) {
-    // 1. Play silent HTML5 <audio> — unlocks iOS audio session,
-    //    bypasses hardware mute switch
-    if (!silentAudio) {
-      silentAudio = new Audio(SILENT_MP3);
-      silentAudio.setAttribute('playsinline', '');
-    }
-    silentAudio.play().catch(() => {});
-    // 2. Also play a silent oscillator — belt and suspenders
-    const osc = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    g.gain.value = 0;
-    osc.connect(g);
-    g.connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.01);
-    audioUnlocked = true;
+
+  if (!audioReady) {
+    // Play a silent AudioBuffer — most reliable cross-browser unlock.
+    // This also switches iOS audio session to "playback" mode.
+    const buf = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    src.connect(audioCtx.destination);
+    src.start();
+    audioReady = true;
   }
 }
 
 function playChiptune() {
-  if (!soundEnabled || !audioCtx) return;
+  if (!soundEnabled || !audioCtx || audioCtx.state !== 'running') return;
   stopChiptune();
   musicPlaying = true;
 
@@ -1204,7 +1198,7 @@ function playChiptune() {
 
   function playStep() {
     if (!musicPlaying || !audioCtx) return;
-    const now = audioCtx.currentTime;
+    const now = audioCtx.currentTime + 0.01; // offset for Safari
     const idx = step % melody.length;
 
     // Melody voice — square wave
@@ -1273,7 +1267,7 @@ function stopChiptune() {
 //    setValueAtTime at a future time BEFORE the ramp target time.
 
 function sfxHit() {
-  if (!soundEnabled || !audioCtx || !sfxGain) return;
+  if (!soundEnabled || !audioCtx || !sfxGain || audioCtx.state !== 'running') return;
   const now = audioCtx.currentTime + 0.01;
   const osc = audioCtx.createOscillator();
   const g = audioCtx.createGain();
@@ -1287,7 +1281,7 @@ function sfxHit() {
 }
 
 function sfxSuperHit() {
-  if (!soundEnabled || !audioCtx || !sfxGain) return;
+  if (!soundEnabled || !audioCtx || !sfxGain || audioCtx.state !== 'running') return;
   const now = audioCtx.currentTime + 0.01;
   [0, 30].forEach(detune => {
     const osc = audioCtx.createOscillator();
@@ -1314,7 +1308,7 @@ function sfxSuperHit() {
 }
 
 function sfxGood() {
-  if (!soundEnabled || !audioCtx || !sfxGain) return;
+  if (!soundEnabled || !audioCtx || !sfxGain || audioCtx.state !== 'running') return;
   const now = audioCtx.currentTime + 0.01;
   [523, 659, 784].forEach((freq, i) => {
     const osc = audioCtx.createOscillator();
@@ -1330,7 +1324,7 @@ function sfxGood() {
 }
 
 function sfxCoffee() {
-  if (!soundEnabled || !audioCtx || !sfxGain) return;
+  if (!soundEnabled || !audioCtx || !sfxGain || audioCtx.state !== 'running') return;
   const now = audioCtx.currentTime + 0.01;
   [523, 659, 784, 1047, 1319].forEach((freq, i) => {
     const osc = audioCtx.createOscillator();
@@ -1346,7 +1340,7 @@ function sfxCoffee() {
 }
 
 function sfxGameOver() {
-  if (!soundEnabled || !audioCtx || !sfxGain) return;
+  if (!soundEnabled || !audioCtx || !sfxGain || audioCtx.state !== 'running') return;
   const now = audioCtx.currentTime + 0.01;
   [
     { freq: 784, time: 0,    dur: 0.18 },
@@ -1380,8 +1374,8 @@ function sfxGameOver() {
   bass.start(bt); bass.stop(bt + 0.75);
 }
 
-function toggleSound() {
-  initAudio(); // ensure context is alive (mobile)
+async function toggleSound() {
+  await ensureAudio();
   soundEnabled = !soundEnabled;
   document.getElementById('sound-btn').textContent = soundEnabled ? '🔊' : '🔇';
   if (soundEnabled && G.running) playChiptune();
@@ -1392,7 +1386,7 @@ function toggleSound() {
 // LIFECYCLE
 // ============================================================
 
-function startGame() {
+async function startGame() {
   resetState();
   G.running = true;
   G.cellX = getCenterX();
@@ -1401,7 +1395,8 @@ function startGame() {
   document.getElementById('gameover').classList.remove('active');
   document.getElementById('hud').classList.add('active');
 
-  initAudio();
+  // AWAIT audio — context must be 'running' before scheduling sounds
+  await ensureAudio();
   if (soundEnabled) playChiptune();
 
   flash('SURVIVE THE GRIND!', '#e84a27');
@@ -1445,8 +1440,15 @@ document.addEventListener('keydown', (e) => {
 let touchStartX = 0, touchStartY = 0, touchTime = 0;
 
 document.addEventListener('touchstart', (e) => {
-  // Full unlock on every touch — iOS can re-suspend aggressively
-  initAudio();
+  // Pre-warm audio on every touch — creates context early so
+  // startGame's await ensureAudio() resolves faster
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    sfxGain = audioCtx.createGain();
+    sfxGain.gain.value = 0.5;
+    sfxGain.connect(audioCtx.destination);
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
   touchStartX = e.touches[0].clientX;
   touchStartY = e.touches[0].clientY;
   touchTime = Date.now();
