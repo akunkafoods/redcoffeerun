@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Red Coffee Run — Akunka</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bangers&family=DM+Sans:wght@400;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a12;
+    overflow: hidden;
+    touch-action: none;
+    font-family: 'DM Sans', sans-serif;
+    color: #fff;
+    height: 100vh;
+    width: 100vw;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  canvas { display: block; }
+
+  /* HUD */
+  #hud {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    padding: 10px 14px;
+    display: none;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 10;
+    background: linear-gradient(180deg, rgba(0,0,0,0.6) 0%, transparent 100%);
+  }
+  #hud.active { display: flex; }
+
+  .hud-energy-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .hud-label {
+    font-family: 'Bangers', cursive;
+    font-size: 11px;
+    color: #ccc;
+    letter-spacing: 2px;
+  }
+  #energy-bar-bg {
+    width: 130px;
+    height: 14px;
+    background: #1a1a2e;
+    border-radius: 7px;
+    overflow: hidden;
+    border: 2px solid #333;
+    position: relative;
+  }
+  #energy-bar {
+    height: 100%;
+    width: 100%;
+    border-radius: 5px;
+    transition: width 0.3s, background 0.3s;
+    background: linear-gradient(90deg, #ff4444, #ffaa00, #44ff88);
+  }
+  #energy-label {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Bangers', cursive;
+    font-size: 9px;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  }
+
+  .hud-right {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .hud-score {
+    font-family: 'Bangers', cursive;
+    font-size: 22px;
+    color: #fff;
+    letter-spacing: 1px;
+  }
+  .hud-coffees {
+    font-family: 'Bangers', cursive;
+    font-size: 13px;
+    color: #e84a27;
+  }
+
+  /* Start Screen */
+  #start-screen {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse at 50% 40%, #1a0a0a 0%, #0a0a12 70%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    gap: 14px;
+  }
+  #start-screen.hidden { display: none; }
+
+  .s-pre {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .s-title {
+    font-family: 'Bangers', cursive;
+    font-size: 42px;
+    color: #e84a27;
+    text-shadow: 0 0 30px rgba(232, 74, 39, 0.4), 0 4px 0 #8b1a0a;
+    letter-spacing: 3px;
+    line-height: 1;
+  }
+  .s-subtitle {
+    font-family: 'Bangers', cursive;
+    font-size: 16px;
+    color: #44ff88;
+    letter-spacing: 2px;
+  }
+  .s-desc {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    color: #777;
+    max-width: 280px;
+    text-align: center;
+    line-height: 1.6;
+  }
+  .s-legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 4px;
+  }
+  .s-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: #aaa;
+  }
+  .s-legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+  .dot-good { background: #44ff88; box-shadow: 0 0 6px #44ff88; }
+  .dot-bad { background: #ff4444; box-shadow: 0 0 6px #ff4444; }
+  .dot-coffee { background: #e84a27; box-shadow: 0 0 8px #e84a27; }
+
+  .start-btn {
+    font-family: 'Bangers', cursive;
+    font-size: 16px;
+    color: #fff;
+    background: #e84a27;
+    border: none;
+    padding: 14px 36px;
+    border-radius: 10px;
+    cursor: pointer;
+    margin-top: 14px;
+    box-shadow: 0 4px 0 #8b1a0a, 0 0 40px rgba(232, 74, 39, 0.3);
+    letter-spacing: 2px;
+    transition: all 0.1s;
+  }
+  .start-btn:active {
+    transform: translateY(4px);
+    box-shadow: 0 0 0 #8b1a0a, 0 0 20px rgba(232, 74, 39, 0.3);
+  }
+  .s-hint {
+    font-size: 10px;
+    color: #555;
+    letter-spacing: 1px;
+  }
+
+  /* Game Over */
+  #gameover {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(10, 10, 18, 0.94);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    gap: 10px;
+  }
+  #gameover.active { display: flex; }
+
+  .go-title {
+    font-family: 'Bangers', cursive;
+    font-size: 28px;
+    color: #ff4444;
+    text-shadow: 0 0 20px rgba(255, 68, 68, 0.4);
+    letter-spacing: 2px;
+  }
+  .go-reason {
+    font-size: 12px;
+    color: #aaa;
+    text-align: center;
+    max-width: 260px;
+    line-height: 1.5;
+  }
+  .go-stats {
+    display: flex;
+    gap: 20px;
+    margin: 8px 0;
+  }
+  .go-stat {
+    text-align: center;
+  }
+  .go-stat-val {
+    font-family: 'Bangers', cursive;
+    font-size: 24px;
+    color: #fff;
+  }
+  .go-stat-label {
+    font-size: 9px;
+    color: #888;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .go-insight-box {
+    background: rgba(232, 74, 39, 0.08);
+    border: 1px solid rgba(232, 74, 39, 0.25);
+    border-radius: 10px;
+    padding: 12px 16px;
+    max-width: 290px;
+    text-align: center;
+  }
+  .go-insight-label {
+    font-family: 'Bangers', cursive;
+    font-size: 10px;
+    color: #e84a27;
+    letter-spacing: 2px;
+    margin-bottom: 4px;
+  }
+  .go-insight-text {
+    font-size: 11px;
+    color: #bbb;
+    line-height: 1.5;
+  }
+
+  .restart-btn {
+    font-family: 'Bangers', cursive;
+    font-size: 14px;
+    color: #fff;
+    background: #e84a27;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: 8px;
+    box-shadow: 0 4px 0 #8b1a0a;
+    letter-spacing: 2px;
+  }
+  .restart-btn:active {
+    transform: translateY(4px);
+    box-shadow: 0 0 0 #8b1a0a;
+  }
+
+  .go-link {
+    font-size: 11px;
+    color: #e84a27;
+    text-decoration: underline;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-energy-wrap">
+    <div class="hud-label">ENERGY</div>
+    <div id="energy-bar-bg">
+      <div id="energy-bar"></div>
+      <div id="energy-label">EQUILIBRIUM</div>
+    </div>
+  </div>
+  <div class="hud-right">
+    <div class="hud-score" id="hud-score">0</div>
+    <div class="hud-coffees" id="hud-coffees">☕ 0</div>
+  </div>
+</div>
+
+<!-- Start -->
+<div id="start-screen">
+  <div class="s-pre">Akunka presents</div>
+  <div class="s-title">RED COFFEE<br>RUN</div>
+  <div class="s-subtitle">Survive the Daily Grind</div>
+  <div class="s-desc">
+    You're a cell navigating daily life chaos. Dodge the bad stuff. Grab what helps. Find Red Coffee to restore equilibrium.
+  </div>
+  <div class="s-legend">
+    <div class="s-legend-item"><div class="s-legend-dot dot-good"></div> Helps</div>
+    <div class="s-legend-item"><div class="s-legend-dot dot-bad"></div> Hurts</div>
+    <div class="s-legend-item"><div class="s-legend-dot dot-coffee"></div> Red Coffee</div>
+  </div>
+  <button class="start-btn" id="start-btn">TAP TO RUN</button>
+  <div class="s-hint">← SWIPE to move · SWIPE UP to jump →</div>
+</div>
+
+<!-- Game Over -->
+<div id="gameover">
+  <div class="go-title">BURNOUT!</div>
+  <div class="go-reason" id="go-reason">Your cell ran out of energy. The daily grind won.</div>
+  <div class="go-stats">
+    <div class="go-stat">
+      <div class="go-stat-val" id="go-score">0</div>
+      <div class="go-stat-label">Distance</div>
+    </div>
+    <div class="go-stat">
+      <div class="go-stat-val" id="go-coffees">0</div>
+      <div class="go-stat-label">Red Coffees</div>
+    </div>
+    <div class="go-stat">
+      <div class="go-stat-val" id="go-best">0</div>
+      <div class="go-stat-label">Best</div>
+    </div>
+  </div>
+  <div class="go-insight-box">
+    <div class="go-insight-label">☕ RED COFFEE INSIGHT</div>
+    <div class="go-insight-text" id="go-insight">Beetroot nitrates widen blood vessels while caffeine sharpens focus. Together, they create balanced energy — no jitters, no crash.</div>
+  </div>
+  <button class="restart-btn" id="restart-btn">RUN AGAIN</button>
+  <div class="go-link" id="go-link">What is Red Coffee? → Learn the science</div>
+</div>
+
+<script>
+// ============================================================
+// RED COFFEE RUN — Daily Life Endless Runner
+// ============================================================
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  canvas.width = Math.min(window.innerWidth, 420);
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ============================================================
+// GAME ITEMS — Real life moments as cartoon characters
+// ============================================================
+
+// BAD ITEMS — red/orange glow, angry faces, jagged
+const BAD_ITEMS = [
+  { emoji: '😤', label: 'Grumpy Boss', damage: 14, color: '#ff4444', desc: 'Deadline stress!' },
+  { emoji: '📱', label: 'Notification Storm', damage: 8, color: '#ff6644', desc: 'Distraction overload!' },
+  { emoji: '🍕', label: 'Junk Temptation', damage: 10, color: '#ff8844', desc: 'Sugar spike incoming!' },
+  { emoji: '😴', label: 'Sleep Debt', damage: 12, color: '#cc44aa', desc: 'Should\'ve slept more!' },
+  { emoji: '🚗', label: 'Traffic Jam', damage: 9, color: '#ff5555', desc: 'Cortisol surge!' },
+  { emoji: '🍬', label: 'Sugar Crash', damage: 15, color: '#ffaa00', desc: 'Energy nosedive!' },
+  { emoji: '🍺', label: 'One More Drink', damage: 16, color: '#cc6633', desc: 'Liver says no!' },
+  { emoji: '💻', label: 'Endless Meeting', damage: 11, color: '#ff4466', desc: 'Brain drain!' },
+  { emoji: '😰', label: 'Anxiety Spiral', damage: 13, color: '#dd44dd', desc: 'Cortisol flooding!' },
+];
+
+// GOOD ITEMS — green/blue glow, calm, smooth
+const GOOD_ITEMS = [
+  { emoji: '💧', label: 'Water', heal: 6, points: 5, color: '#44aaff', desc: '+Hydration' },
+  { emoji: '🥗', label: 'Salad Bowl', heal: 8, points: 8, color: '#44ff88', desc: '+Fiber' },
+  { emoji: '🏃', label: 'Quick Walk', heal: 7, points: 10, color: '#88ff44', desc: '+Movement' },
+  { emoji: '🧘', label: 'Deep Breath', heal: 10, points: 8, color: '#88ccff', desc: '+Calm' },
+  { emoji: '🥦', label: 'Veggies', heal: 9, points: 7, color: '#44dd66', desc: '+Phytonutrients' },
+  { emoji: '😊', label: 'Good Chat', heal: 5, points: 6, color: '#66ddaa', desc: '+Mood' },
+  { emoji: '🌙', label: 'Power Nap', heal: 12, points: 8, color: '#aa88ff', desc: '+Recovery' },
+];
+
+// RED COFFEE — the hero pickup, unmistakable
+const RED_COFFEE = {
+  emoji: '☕',
+  label: 'RED COFFEE',
+  heal: 30,
+  points: 25,
+  color: '#e84a27',
+  desc: '⚡ EQUILIBRIUM!',
+};
+
+// Red Coffee insights for game over
+const RC_INSIGHTS = [
+  "Beetroot nitrates widen blood vessels while caffeine sharpens focus. Together: balanced energy without the crash.",
+  "Red Coffee combines Arabica coffee with beetroot powder. Caffeine constricts, nitrates dilate — your body finds equilibrium.",
+  "Most energy drinks spike you then crash you. Red Coffee's dual mechanism keeps blood flow steady while your mind stays sharp.",
+  "Beetroot is one of nature's richest sources of dietary nitrates. Your cells convert these to nitric oxide — a vasodilator that improves oxygen delivery.",
+  "The 'jitter' from coffee is partly vasoconstriction. Beetroot nitrates counteract this, keeping blood flow smooth while you stay alert.",
+  "7g of Red Coffee daily gives you both the cognitive boost of caffeine and the circulatory benefits of nitric oxide. That's the Daily Rise.",
+  "Athletes use beetroot for endurance. Knowledge workers use caffeine for focus. Red Coffee gives you both in one cup.",
+  "Chronic caffeine without vasodilation stresses your cardiovascular system. Red Coffee's beetroot component acts as a natural counterbalance.",
+];
+
+const DEATH_REASONS = [
+  "The daily grind won. Your cell burned out.",
+  "Too many meetings, not enough Red Coffee.",
+  "Sugar crashes and stress took their toll.",
+  "Your cell couldn't keep up with the chaos.",
+  "Burnout. Your equilibrium was lost.",
+  "The grumpy boss was the last straw.",
+];
+
+// ============================================================
+// GAME STATE
+// ============================================================
+
+const LANES = [-1, 0, 1];
+const LANE_WIDTH = 72;
+
+let G = {};
+
+function resetState() {
+  G = {
+    running: false,
+    energy: 100,
+    maxEnergy: 100,
+    score: 0,
+    coffees: 0,
+    speed: 3.8,
+    lane: 0,
+    targetLane: 0,
+    cellX: getCenterX(),
+    jumpY: 0,
+    isJumping: false,
+    jumpVel: 0,
+    items: [],       // all items on screen
+    particles: [],
+    bgDots: [],
+    frameCount: 0,
+    bestScore: parseInt(localStorage.getItem('rcrun-best') || '0'),
+    equilibriumTimer: 0, // glowing green state after Red Coffee
+    flashText: '',
+    flashTimer: 0,
+    flashColor: '#fff',
+    lastCoffeeSpawn: 0,
+    comboGood: 0,
+    shakeTimer: 0,
+    shakeIntensity: 0,
+  };
+
+  // Pre-generate background elements
+  for (let i = 0; i < 20; i++) {
+    G.bgDots.push({
+      x: Math.random() * 420,
+      y: Math.random() * window.innerHeight,
+      size: 1 + Math.random() * 3,
+      speed: 0.3 + Math.random() * 0.5,
+      alpha: 0.05 + Math.random() * 0.1,
+    });
+  }
+}
+
+function getCenterX() { return canvas.width / 2; }
+function getCellY() { return canvas.height * 0.72; }
+function laneToX(lane) { return getCenterX() + lane * LANE_WIDTH; }
+
+// ============================================================
+// DRAWING
+// ============================================================
+
+function drawBackground() {
+  // Gradient — dark urban feel
+  const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  bg.addColorStop(0, '#0d0a12');
+  bg.addColorStop(0.4, '#120d18');
+  bg.addColorStop(1, '#0a0d12');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Scrolling background dots (city lights feel)
+  for (const d of G.bgDots) {
+    d.y += G.speed * d.speed;
+    if (d.y > canvas.height + 10) { d.y = -10; d.x = Math.random() * canvas.width; }
+    ctx.globalAlpha = d.alpha;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(d.x, d.y, d.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Lane markers
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([8, 24]);
+  for (let l = -0.5; l <= 0.5; l++) {
+    const lx = laneToX(l);
+    ctx.beginPath();
+    ctx.moveTo(lx, 0);
+    ctx.lineTo(lx, canvas.height);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // Road edges — subtle glow
+  const edgeL = getCenterX() - LANE_WIDTH * 2;
+  const edgeR = getCenterX() + LANE_WIDTH * 2;
+  ctx.strokeStyle = 'rgba(232, 74, 39, 0.06)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(edgeL, 0); ctx.lineTo(edgeL, canvas.height); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(edgeR, 0); ctx.lineTo(edgeR, canvas.height); ctx.stroke();
+}
+
+function drawCell(x, y) {
+  const bounce = Math.sin(G.frameCount * 0.15) * 3;
+  const drawY = y + bounce - G.jumpY;
+  const isEq = G.equilibriumTimer > 0;
+
+  // Shake offset
+  let sx = 0, sy = 0;
+  if (G.shakeTimer > 0) {
+    sx = (Math.random() - 0.5) * G.shakeIntensity;
+    sy = (Math.random() - 0.5) * G.shakeIntensity;
+  }
+
+  ctx.save();
+  ctx.translate(sx, sy);
+
+  // Outer glow
+  ctx.beginPath();
+  ctx.arc(x, drawY, 34, 0, Math.PI * 2);
+  if (isEq) {
+    ctx.fillStyle = `rgba(68, 255, 136, ${0.2 + Math.sin(G.frameCount * 0.15) * 0.1})`;
+    ctx.shadowColor = '#44ff88';
+    ctx.shadowBlur = 25;
+  } else {
+    ctx.fillStyle = 'rgba(100, 200, 150, 0.1)';
+    ctx.shadowColor = '#44cc88';
+    ctx.shadowBlur = 10;
+  }
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Cell body
+  ctx.beginPath();
+  ctx.arc(x, drawY, 26, 0, Math.PI * 2);
+  const bodyGrad = ctx.createRadialGradient(x - 5, drawY - 5, 4, x, drawY, 26);
+  if (isEq) {
+    bodyGrad.addColorStop(0, '#aaffcc');
+    bodyGrad.addColorStop(0.5, '#55dd88');
+    bodyGrad.addColorStop(1, '#22aa55');
+  } else if (G.energy < 30) {
+    bodyGrad.addColorStop(0, '#ffcc88');
+    bodyGrad.addColorStop(0.5, '#cc8844');
+    bodyGrad.addColorStop(1, '#884422');
+  } else {
+    bodyGrad.addColorStop(0, '#88ffbb');
+    bodyGrad.addColorStop(0.5, '#44bb77');
+    bodyGrad.addColorStop(1, '#228844');
+  }
+  ctx.fillStyle = bodyGrad;
+  ctx.fill();
+
+  // Nucleus
+  ctx.beginPath();
+  ctx.arc(x + 2, drawY + 3, 9, 0, Math.PI * 2);
+  ctx.fillStyle = isEq ? '#ccffdd' : '#66cc99';
+  ctx.globalAlpha = 0.6;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Eyes
+  const eyeY = drawY - 6;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(x - 7, eyeY, 5, 5.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + 7, eyeY, 5, 5.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Pupils — look toward target lane
+  const lookX = (G.targetLane - G.lane) * 1.5;
+  ctx.fillStyle = '#111';
+  ctx.beginPath();
+  ctx.arc(x - 6 + lookX, eyeY + 0.5, 2.5, 0, Math.PI * 2);
+  ctx.arc(x + 8 + lookX, eyeY + 0.5, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Mouth — changes with state
+  ctx.strokeStyle = '#115533';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  if (isEq) {
+    // Big grin
+    ctx.arc(x, drawY + 1, 9, 0.1, Math.PI - 0.1);
+  } else if (G.energy < 30) {
+    // Worried
+    ctx.arc(x, drawY + 8, 6, Math.PI + 0.3, -0.3);
+  } else {
+    // Normal smile
+    ctx.arc(x, drawY + 1, 6, 0.2, Math.PI - 0.2);
+  }
+  ctx.stroke();
+
+  // Equilibrium sparkles
+  if (isEq) {
+    for (let i = 0; i < 3; i++) {
+      const angle = G.frameCount * 0.08 + i * (Math.PI * 2 / 3);
+      const dist = 32 + Math.sin(G.frameCount * 0.1 + i) * 4;
+      const sx2 = x + Math.cos(angle) * dist;
+      const sy2 = drawY + Math.sin(angle) * dist;
+      ctx.fillStyle = `rgba(68, 255, 136, ${0.6 + Math.sin(G.frameCount * 0.2 + i) * 0.3})`;
+      ctx.beginPath();
+      ctx.arc(sx2, sy2, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  ctx.restore();
+}
+
+function drawItem(item) {
+  ctx.save();
+  const bob = Math.sin(G.frameCount * 0.08 + item.y * 0.01) * 3;
+
+  // Background indicator — clear visual language
+  if (item.kind === 'bad') {
+    // Red jagged glow
+    ctx.beginPath();
+    ctx.arc(item.x, item.y + bob, 24, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 50, 50, ${0.12 + Math.sin(G.frameCount * 0.1) * 0.05})`;
+    ctx.fill();
+    // Jagged ring
+    ctx.strokeStyle = 'rgba(255, 80, 80, 0.35)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      const r = i % 2 === 0 ? 22 : 18;
+      const px = item.x + Math.cos(a) * r;
+      const py = item.y + bob + Math.sin(a) * r;
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.stroke();
+  } else if (item.kind === 'coffee') {
+    // Golden pulsing aura
+    const pulse = 0.3 + Math.sin(G.frameCount * 0.12) * 0.15;
+    ctx.beginPath();
+    ctx.arc(item.x, item.y + bob, 30, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(232, 74, 39, ${pulse * 0.3})`;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(item.x, item.y + bob, 22, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 200, 50, ${pulse * 0.4})`;
+    ctx.fill();
+    // Smooth golden ring
+    ctx.strokeStyle = `rgba(255, 180, 40, ${0.5 + Math.sin(G.frameCount * 0.15) * 0.3})`;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(item.x, item.y + bob, 26, 0, Math.PI * 2);
+    ctx.stroke();
+  } else {
+    // Green smooth glow
+    ctx.beginPath();
+    ctx.arc(item.x, item.y + bob, 22, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(68, 255, 136, 0.1)';
+    ctx.fill();
+    // Smooth ring
+    ctx.strokeStyle = 'rgba(68, 255, 136, 0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(item.x, item.y + bob, 20, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Draw item content
+  if (item.kind === 'coffee') {
+    // Custom drawn Red Coffee cup — white cup, red liquid
+    const cx = item.x;
+    const cy = item.y + bob;
+    const s = 1.1; // scale
+
+    // Steam wisps
+    const steamAlpha = 0.2 + Math.sin(G.frameCount * 0.08) * 0.1;
+    ctx.strokeStyle = `rgba(255, 255, 255, ${steamAlpha})`;
+    ctx.lineWidth = 1.2;
+    ctx.lineCap = 'round';
+    for (let si = 0; si < 3; si++) {
+      const sx = cx - 5*s + si * 5*s;
+      const sPhase = G.frameCount * 0.06 + si * 1.5;
+      ctx.beginPath();
+      ctx.moveTo(sx, cy - 14*s);
+      ctx.quadraticCurveTo(sx + Math.sin(sPhase) * 3*s, cy - 20*s, sx + Math.sin(sPhase + 1) * 2*s, cy - 26*s);
+      ctx.stroke();
+    }
+
+    // Cup body — white, slightly tapered
+    ctx.beginPath();
+    ctx.moveTo(cx - 10*s, cy - 10*s);  // top left
+    ctx.lineTo(cx - 8*s, cy + 10*s);   // bottom left
+    ctx.quadraticCurveTo(cx, cy + 13*s, cx + 8*s, cy + 10*s); // rounded bottom
+    ctx.lineTo(cx + 10*s, cy - 10*s);  // top right
+    ctx.closePath();
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = '#cccccc';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Red liquid fill inside — fills ~75% of cup
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(cx - 10*s, cy - 10*s);
+    ctx.lineTo(cx - 8*s, cy + 10*s);
+    ctx.quadraticCurveTo(cx, cy + 13*s, cx + 8*s, cy + 10*s);
+    ctx.lineTo(cx + 10*s, cy - 10*s);
+    ctx.closePath();
+    ctx.clip();
+
+    // Red liquid — gradient from dark red to bright red
+    const liquidTop = cy - 4*s;
+    const liquidGrad = ctx.createLinearGradient(cx, liquidTop, cx, cy + 12*s);
+    liquidGrad.addColorStop(0, '#e84a27');
+    liquidGrad.addColorStop(0.4, '#cc2211');
+    liquidGrad.addColorStop(1, '#991500');
+    ctx.fillStyle = liquidGrad;
+    ctx.fillRect(cx - 12*s, liquidTop, 24*s, cy + 14*s - liquidTop);
+
+    // Liquid surface highlight
+    ctx.beginPath();
+    ctx.ellipse(cx, liquidTop, 9*s, 2*s, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 120, 80, 0.5)';
+    ctx.fill();
+
+    ctx.restore();
+
+    // Cup handle — right side
+    ctx.beginPath();
+    ctx.arc(cx + 11*s, cy, 5*s, -Math.PI * 0.4, Math.PI * 0.4);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.strokeStyle = '#cccccc';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Cup rim highlight
+    ctx.beginPath();
+    ctx.moveTo(cx - 10*s, cy - 10*s);
+    ctx.lineTo(cx + 10*s, cy - 10*s);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // "RED" text on cup
+    ctx.font = "bold " + Math.floor(6*s) + "px 'Bangers', cursive";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#e84a27';
+    ctx.fillText('RED', cx - 1*s, cy + 2*s);
+
+    // Label below
+    ctx.font = "bold 9px 'Bangers', cursive";
+    ctx.fillStyle = '#e84a27';
+    ctx.textAlign = 'center';
+    ctx.fillText('RED COFFEE', cx, cy + 24*s);
+  } else {
+    // Emoji for non-coffee items
+    ctx.font = '26px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(item.data.emoji, item.x, item.y + bob);
+  }
+
+  ctx.restore();
+}
+
+function drawParticles() {
+  for (let i = G.particles.length - 1; i >= 0; i--) {
+    const p = G.particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.1; // gravity
+    p.life -= 0.025;
+    if (p.life <= 0) { G.particles.splice(i, 1); continue; }
+    ctx.save();
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    if (p.type === 'star') {
+      ctx.font = `${Math.floor(p.size * p.life)}px serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText('✦', p.x, p.y);
+    } else {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function spawnParticles(x, y, color, count, type) {
+  for (let i = 0; i < count; i++) {
+    G.particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 5,
+      vy: (Math.random() - 0.5) * 5 - 2,
+      color,
+      size: type === 'star' ? 14 + Math.random() * 8 : 3 + Math.random() * 4,
+      life: 1,
+      type: type || 'circle',
+    });
+  }
+}
+
+function drawFlash() {
+  if (G.flashTimer > 0) {
+    const alpha = G.flashTimer / 35;
+    ctx.save();
+    ctx.font = "bold 16px 'Bangers', cursive";
+    ctx.textAlign = 'center';
+    ctx.fillStyle = G.flashColor;
+    ctx.globalAlpha = alpha;
+    // Shadow for readability
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 8;
+    ctx.fillText(G.flashText, getCenterX(), canvas.height * 0.48 - (1 - alpha) * 20);
+    ctx.restore();
+    G.flashTimer--;
+  }
+}
+
+// ============================================================
+// GAME LOGIC
+// ============================================================
+
+function spawnItem() {
+  const lane = LANES[Math.floor(Math.random() * 3)];
+  const roll = Math.random();
+
+  // Red Coffee — less frequent, more valuable
+  const coffeeChance = G.frameCount - G.lastCoffeeSpawn > 300 ? 0.12 : 0.03;
+
+  let item;
+  if (roll < coffeeChance) {
+    item = { x: laneToX(lane), y: -40, lane, kind: 'coffee', data: RED_COFFEE, w: 30, h: 30 };
+    G.lastCoffeeSpawn = G.frameCount;
+  } else if (roll < 0.55) {
+    // Bad item
+    const type = BAD_ITEMS[Math.floor(Math.random() * BAD_ITEMS.length)];
+    item = { x: laneToX(lane), y: -40, lane, kind: 'bad', data: type, w: 28, h: 28 };
+  } else {
+    // Good item
+    const type = GOOD_ITEMS[Math.floor(Math.random() * GOOD_ITEMS.length)];
+    item = { x: laneToX(lane), y: -40, lane, kind: 'good', data: type, w: 26, h: 26 };
+  }
+
+  G.items.push(item);
+}
+
+function flash(text, color) {
+  G.flashText = text;
+  G.flashColor = color || '#fff';
+  G.flashTimer = 35;
+}
+
+function shake(intensity, duration) {
+  G.shakeIntensity = intensity;
+  G.shakeTimer = duration;
+}
+
+function checkCollision(cellX, cellY, item) {
+  const dist = Math.sqrt((cellX - item.x) ** 2 + ((cellY - G.jumpY) - item.y) ** 2);
+  return dist < 34;
+}
+
+function update() {
+  if (!G.running) return;
+
+  G.frameCount++;
+  G.score += Math.floor(G.speed * 0.4);
+
+  // Speed step function — discrete jumps, capped at 5x initial
+  const INITIAL_SPEED = 3.8;
+  const MAX_SPEED = INITIAL_SPEED * 5; // 19
+  const STEP_INTERVAL = 600; // ~10 sec at 60fps
+  const SPEED_STEP = 1.5;
+  const targetSpeed = Math.min(
+    INITIAL_SPEED + Math.floor(G.frameCount / STEP_INTERVAL) * SPEED_STEP,
+    MAX_SPEED
+  );
+  if (targetSpeed > G.speed) {
+    G.speed = targetSpeed;
+    flash('⚡ SPEED UP!', '#ffaa00');
+    shake(4, 6);
+  }
+
+  // Passive energy drain — the daily grind
+  G.energy -= 0.02 * (1 + G.speed * 0.1);
+
+  // Equilibrium timer countdown
+  if (G.equilibriumTimer > 0) {
+    G.equilibriumTimer--;
+    // Slower energy drain during equilibrium
+    G.energy += 0.015;
+  }
+
+  // Shake countdown
+  if (G.shakeTimer > 0) G.shakeTimer--;
+
+  // Lane interpolation
+  const targetX = laneToX(G.targetLane);
+  G.cellX += (targetX - G.cellX) * 0.2;
+
+  // Jump
+  if (G.isJumping) {
+    G.jumpY += G.jumpVel;
+    G.jumpVel -= 1.3;
+    if (G.jumpY <= 0) {
+      G.jumpY = 0;
+      G.isJumping = false;
+      G.jumpVel = 0;
+    }
+  }
+
+  // Spawn items
+  const spawnRate = Math.max(25, 60 - G.speed * 2.5);
+  if (G.frameCount % Math.floor(spawnRate) === 0) spawnItem();
+
+  // Harder at higher speeds — more items
+  if (G.speed > 6 && G.frameCount % Math.floor(spawnRate * 0.6) === 0) {
+    spawnItem();
+  }
+
+  // Update items
+  const cellY = getCellY();
+  for (let i = G.items.length - 1; i >= 0; i--) {
+    const item = G.items[i];
+    item.y += G.speed;
+
+    if (item.y > canvas.height + 50) {
+      G.items.splice(i, 1);
+      continue;
+    }
+
+    // Collision
+    if (!checkCollision(G.cellX, cellY, item)) continue;
+
+    if (item.kind === 'bad') {
+      if (G.equilibriumTimer > 0) {
+        // Shield from equilibrium — reduced damage
+        G.energy -= item.data.damage * 0.3;
+        flash(item.data.desc + ' (shielded!)', '#88ffcc');
+        spawnParticles(item.x, item.y, '#44ff88', 6, 'circle');
+      } else {
+        G.energy -= item.data.damage;
+        G.comboGood = 0;
+        flash(item.data.desc, '#ff4444');
+        spawnParticles(item.x, item.y, item.data.color, 10, 'circle');
+        shake(6, 8);
+      }
+    } else if (item.kind === 'coffee') {
+      G.energy = Math.min(G.maxEnergy, G.energy + item.data.heal);
+      G.coffees++;
+      G.comboGood++;
+      G.equilibriumTimer = 300; // 5 seconds of equilibrium
+      flash('⚡ EQUILIBRIUM! ⚡', '#e84a27');
+      spawnParticles(item.x, item.y, '#e84a27', 15, 'star');
+      spawnParticles(item.x, item.y, '#ffcc44', 10, 'circle');
+    } else {
+      G.energy = Math.min(G.maxEnergy, G.energy + item.data.heal);
+      G.comboGood++;
+      flash(item.data.desc, '#44ff88');
+      spawnParticles(item.x, item.y, item.data.color, 6, 'circle');
+    }
+
+    G.items.splice(i, 1);
+  }
+
+  // Clamp energy
+  G.energy = Math.max(0, Math.min(G.maxEnergy, G.energy));
+
+  // Update HUD
+  document.getElementById('energy-bar').style.width = G.energy + '%';
+  document.getElementById('hud-score').textContent = G.score;
+  document.getElementById('hud-coffees').textContent = '☕ ' + G.coffees;
+
+  // Energy bar color
+  const ebar = document.getElementById('energy-bar');
+  if (G.equilibriumTimer > 0) {
+    ebar.style.background = 'linear-gradient(90deg, #44ff88, #88ffcc, #44ff88)';
+    document.getElementById('energy-label').textContent = '⚡ EQUILIBRIUM ⚡';
+  } else if (G.energy < 25) {
+    ebar.style.background = '#ff4444';
+    document.getElementById('energy-label').textContent = 'LOW ENERGY';
+  } else if (G.energy < 50) {
+    ebar.style.background = 'linear-gradient(90deg, #ff4444, #ffaa00)';
+    document.getElementById('energy-label').textContent = 'DRAINING...';
+  } else {
+    ebar.style.background = 'linear-gradient(90deg, #ffaa00, #44ff88)';
+    document.getElementById('energy-label').textContent = 'ENERGY';
+  }
+
+  // Death
+  if (G.energy <= 0) {
+    gameOver();
+  }
+}
+
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Apply screen shake
+  ctx.save();
+  if (G.shakeTimer > 0) {
+    ctx.translate(
+      (Math.random() - 0.5) * G.shakeIntensity,
+      (Math.random() - 0.5) * G.shakeIntensity
+    );
+  }
+
+  drawBackground();
+
+  // Items
+  G.items.forEach(drawItem);
+
+  // Cell
+  drawCell(G.cellX, getCellY());
+
+  // Particles
+  drawParticles();
+
+  ctx.restore();
+
+  // Flash (outside shake)
+  drawFlash();
+}
+
+function gameLoop() {
+  update();
+  render();
+  if (G.running) requestAnimationFrame(gameLoop);
+}
+
+// ============================================================
+// LIFECYCLE
+// ============================================================
+
+function startGame() {
+  resetState();
+  G.running = true;
+  G.cellX = getCenterX();
+
+  document.getElementById('start-screen').classList.add('hidden');
+  document.getElementById('gameover').classList.remove('active');
+  document.getElementById('hud').classList.add('active');
+
+  flash('SURVIVE THE GRIND!', '#e84a27');
+  gameLoop();
+}
+
+function gameOver() {
+  G.running = false;
+
+  if (G.score > G.bestScore) {
+    G.bestScore = G.score;
+    localStorage.setItem('rcrun-best', G.bestScore.toString());
+  }
+
+  document.getElementById('go-score').textContent = G.score;
+  document.getElementById('go-coffees').textContent = G.coffees;
+  document.getElementById('go-best').textContent = G.bestScore;
+  document.getElementById('go-reason').textContent = DEATH_REASONS[Math.floor(Math.random() * DEATH_REASONS.length)];
+  document.getElementById('go-insight').textContent = RC_INSIGHTS[Math.floor(Math.random() * RC_INSIGHTS.length)];
+
+  document.getElementById('hud').classList.remove('active');
+  document.getElementById('gameover').classList.add('active');
+}
+
+// ============================================================
+// CONTROLS
+// ============================================================
+
+document.addEventListener('keydown', (e) => {
+  if (!G.running) return;
+  if (e.key === 'ArrowLeft' || e.key === 'a') G.targetLane = Math.max(-1, G.targetLane - 1);
+  if (e.key === 'ArrowRight' || e.key === 'd') G.targetLane = Math.min(1, G.targetLane + 1);
+  if ((e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') && !G.isJumping) {
+    G.isJumping = true;
+    G.jumpVel = 14;
+  }
+});
+
+let touchStartX = 0, touchStartY = 0, touchTime = 0;
+
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+  touchTime = Date.now();
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+  if (!G.running) return;
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchTime;
+  if (dt > 300) return;
+
+  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 25) {
+    if (dx > 0) G.targetLane = Math.min(1, G.targetLane + 1);
+    else G.targetLane = Math.max(-1, G.targetLane - 1);
+  } else if (dy < -25) {
+    if (!G.isJumping) { G.isJumping = true; G.jumpVel = 14; }
+  }
+}, { passive: true });
+
+// Buttons
+document.getElementById('start-btn').addEventListener('click', startGame);
+document.getElementById('restart-btn').addEventListener('click', startGame);
+document.getElementById('go-link').addEventListener('click', () => {
+  // Link to Red Coffee product or science page
+  window.open('https://akunkafoods.com', '_blank');
+});
+
+// Init
+resetState();
+</script>
+
+</body>
+</html>
