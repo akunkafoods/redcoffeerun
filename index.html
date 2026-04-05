@@ -1129,7 +1129,8 @@ function gameLoop() {
 // ============================================================
 
 let audioCtx = null;
-let sfxGain = null;   // shared gain for all SFX
+let sfxGain = null;
+let audioUnlocked = false;
 let musicPlaying = false;
 let musicNodes = [];
 let musicInterval = null;
@@ -1138,14 +1139,23 @@ let soundEnabled = true;
 function initAudio() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    // SFX master gain — louder than music so hits are felt
     sfxGain = audioCtx.createGain();
     sfxGain.gain.value = 0.5;
     sfxGain.connect(audioCtx.destination);
   }
-  // Mobile browsers suspend AudioContext until user gesture
   if (audioCtx.state === 'suspended') {
     audioCtx.resume();
+  }
+  // iOS Safari requires actually playing audio during a user gesture to unlock
+  if (!audioUnlocked) {
+    const unlock = audioCtx.createOscillator();
+    const silentGain = audioCtx.createGain();
+    silentGain.gain.value = 0;
+    unlock.connect(silentGain);
+    silentGain.connect(audioCtx.destination);
+    unlock.start();
+    unlock.stop(audioCtx.currentTime + 0.001);
+    audioUnlocked = true;
   }
 }
 
@@ -1241,133 +1251,102 @@ function stopChiptune() {
 }
 
 // SFX — short one-shot sounds, all route through sfxGain
-function playSfx(fn) {
-  if (!soundEnabled || !audioCtx || !sfxGain) return;
-  // Ensure context is running (mobile can re-suspend)
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-  fn(audioCtx, sfxGain);
+// Helper: creates osc+gain connected to sfxGain, returns {osc, gain}
+function makeTone(type, freq) {
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  g.gain.value = 0;
+  osc.connect(g);
+  g.connect(sfxGain);
+  return { osc, g };
 }
 
 function sfxHit() {
-  playSfx((ctx, dest) => {
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const g = ctx.createGain();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(400, now);
-    osc.frequency.exponentialRampToValueAtTime(80, now + 0.18);
-    g.gain.setValueAtTime(0.6, now);
-    g.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-    osc.connect(g); g.connect(dest);
-    osc.start(now); osc.stop(now + 0.25);
-  });
+  if (!soundEnabled || !audioCtx || !sfxGain) return;
+  const now = audioCtx.currentTime;
+  const { osc, g } = makeTone('sawtooth', 400);
+  osc.frequency.exponentialRampToValueAtTime(80, now + 0.18);
+  g.gain.setValueAtTime(0.6, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+  osc.start(now); osc.stop(now + 0.25);
 }
 
 function sfxSuperHit() {
-  playSfx((ctx, dest) => {
-    const now = ctx.currentTime;
-    // Two detuned saws — meaty crunch
-    [0, 30].forEach(detune => {
-      const osc = ctx.createOscillator();
-      const g = ctx.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(250 + detune, now);
-      osc.frequency.exponentialRampToValueAtTime(40, now + 0.3);
-      g.gain.setValueAtTime(0.5, now);
-      g.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-      osc.connect(g); g.connect(dest);
-      osc.start(now); osc.stop(now + 0.38);
-    });
-    // Noise burst
-    const bufSize = ctx.sampleRate * 0.1;
-    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < bufSize; i++) d[i] = (Math.random() * 2 - 1);
-    const noise = ctx.createBufferSource();
-    const ng = ctx.createGain();
-    noise.buffer = buf;
-    ng.gain.setValueAtTime(0.4, now);
-    ng.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-    noise.connect(ng); ng.connect(dest);
-    noise.start(now);
+  if (!soundEnabled || !audioCtx || !sfxGain) return;
+  const now = audioCtx.currentTime;
+  [0, 30].forEach(detune => {
+    const { osc, g } = makeTone('sawtooth', 250 + detune);
+    osc.frequency.exponentialRampToValueAtTime(40, now + 0.3);
+    g.gain.setValueAtTime(0.5, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc.start(now); osc.stop(now + 0.38);
   });
+  // Noise burst
+  const bufSize = audioCtx.sampleRate * 0.1;
+  const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) d[i] = (Math.random() * 2 - 1);
+  const noise = audioCtx.createBufferSource();
+  const ng = audioCtx.createGain();
+  noise.buffer = buf;
+  ng.gain.setValueAtTime(0.4, now);
+  ng.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+  noise.connect(ng); ng.connect(sfxGain);
+  noise.start(now);
 }
 
 function sfxGood() {
-  playSfx((ctx, dest) => {
-    const now = ctx.currentTime;
-    // Three-note ascending chime — each note its own oscillator
-    [523, 659, 784].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const g = ctx.createGain();
-      osc.type = 'square';
-      osc.frequency.value = freq;
-      const t = now + i * 0.07;
-      g.gain.setValueAtTime(0.001, now);
-      g.gain.setValueAtTime(0.35, t);
-      g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-      osc.connect(g); g.connect(dest);
-      osc.start(now); osc.stop(t + 0.15);
-    });
+  if (!soundEnabled || !audioCtx || !sfxGain) return;
+  const now = audioCtx.currentTime;
+  [523, 659, 784].forEach((freq, i) => {
+    const { osc, g } = makeTone('square', freq);
+    const t = now + i * 0.07;
+    // Each note: start at its scheduled time, fade out after
+    g.gain.setValueAtTime(0.35, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    osc.start(t); osc.stop(t + 0.15);
   });
 }
 
 function sfxCoffee() {
-  playSfx((ctx, dest) => {
-    const now = ctx.currentTime;
-    // Triumphant 5-note arpeggio
-    [523, 659, 784, 1047, 1319].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const g = ctx.createGain();
-      osc.type = 'square';
-      osc.frequency.value = freq;
-      const t = now + i * 0.07;
-      g.gain.setValueAtTime(0.001, now);
-      g.gain.linearRampToValueAtTime(0.35, t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-      osc.connect(g); g.connect(dest);
-      osc.start(now); osc.stop(t + 0.25);
-    });
+  if (!soundEnabled || !audioCtx || !sfxGain) return;
+  const now = audioCtx.currentTime;
+  [523, 659, 784, 1047, 1319].forEach((freq, i) => {
+    const { osc, g } = makeTone('square', freq);
+    const t = now + i * 0.07;
+    g.gain.setValueAtTime(0.35, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    osc.start(t); osc.stop(t + 0.25);
   });
 }
 
 function sfxGameOver() {
-  playSfx((ctx, dest) => {
-    const now = ctx.currentTime;
-    // Mario-style death — descending staccato notes
-    [
-      { freq: 784, time: 0,    dur: 0.18 },
-      { freq: 659, time: 0.22, dur: 0.18 },
-      { freq: 523, time: 0.44, dur: 0.18 },
-      { freq: 440, time: 0.68, dur: 0.15 },
-      { freq: 349, time: 0.88, dur: 0.15 },
-      { freq: 294, time: 1.08, dur: 0.15 },
-      { freq: 220, time: 1.30, dur: 0.5  },
-    ].forEach(n => {
-      const osc = ctx.createOscillator();
-      const g = ctx.createGain();
-      osc.type = 'square';
-      osc.frequency.value = n.freq;
-      const t = now + n.time;
-      g.gain.setValueAtTime(0.001, now);
-      g.gain.setValueAtTime(0.4, t);
-      g.gain.setValueAtTime(0.4, t + n.dur * 0.6);
-      g.gain.exponentialRampToValueAtTime(0.001, t + n.dur);
-      osc.connect(g); g.connect(dest);
-      osc.start(t); osc.stop(t + n.dur + 0.05);
-    });
-    // Final low rumble
-    const bass = ctx.createOscillator();
-    const bg = ctx.createGain();
-    bass.type = 'triangle';
-    bass.frequency.value = 110;
-    const bt = now + 1.35;
-    bg.gain.setValueAtTime(0.001, now);
-    bg.gain.setValueAtTime(0.5, bt);
-    bg.gain.exponentialRampToValueAtTime(0.001, bt + 0.7);
-    bass.connect(bg); bg.connect(dest);
-    bass.start(bt); bass.stop(bt + 0.75);
+  if (!soundEnabled || !audioCtx || !sfxGain) return;
+  const now = audioCtx.currentTime;
+  [
+    { freq: 784, time: 0,    dur: 0.18 },
+    { freq: 659, time: 0.22, dur: 0.18 },
+    { freq: 523, time: 0.44, dur: 0.18 },
+    { freq: 440, time: 0.68, dur: 0.15 },
+    { freq: 349, time: 0.88, dur: 0.15 },
+    { freq: 294, time: 1.08, dur: 0.15 },
+    { freq: 220, time: 1.30, dur: 0.5  },
+  ].forEach(n => {
+    const { osc, g } = makeTone('square', n.freq);
+    const t = now + n.time;
+    g.gain.setValueAtTime(0.4, t);
+    g.gain.setValueAtTime(0.4, t + n.dur * 0.6);
+    g.gain.exponentialRampToValueAtTime(0.001, t + n.dur);
+    osc.start(t); osc.stop(t + n.dur + 0.05);
   });
+  // Final low rumble
+  const { osc: bass, g: bg } = makeTone('triangle', 110);
+  const bt = now + 1.35;
+  bg.gain.setValueAtTime(0.5, bt);
+  bg.gain.exponentialRampToValueAtTime(0.001, bt + 0.7);
+  bass.start(bt); bass.stop(bt + 0.75);
 }
 
 function toggleSound() {
@@ -1435,8 +1414,11 @@ document.addEventListener('keydown', (e) => {
 let touchStartX = 0, touchStartY = 0, touchTime = 0;
 
 document.addEventListener('touchstart', (e) => {
-  // Resume audio on every touch — mobile browsers can re-suspend
-  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  // Keep audio alive on every touch — mobile browsers re-suspend aggressively
+  if (audioCtx) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (!audioUnlocked) initAudio();
+  }
   touchStartX = e.touches[0].clientX;
   touchStartY = e.touches[0].clientY;
   touchTime = Date.now();
