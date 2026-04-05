@@ -1136,6 +1136,12 @@ let musicNodes = [];
 let musicInterval = null;
 let soundEnabled = true;
 
+// Tiny silent MP3 — playing an <audio> element on iOS switches the audio
+// session to "playback" mode, which bypasses the hardware mute switch
+// and fully unlocks Web Audio API. A silent oscillator alone is NOT enough.
+const SILENT_MP3 = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAYYoRwVHAAAAAAD/+1DEAAAH2ANoUAAAIsoKbhpIAABEAJBAgAABADCYHBx8oc/KHN+UOf/5Q5/ygIAg+D4Pg+BAEHwfB8HwfB8EAQBB8HwfB8HwIAgCAIAgCDv//6gfUAAEZGMjIAAAA//tQxBEAAADSAAAAAAAAANIAAAAASZJkAAJnOc5z//Oc5znOc5znOf///nOc5znOc5znOc////+c5znOc5znOc5z//////5znOc5znOc5znOf///////Oc5znOc5znOcwAAAAA';
+let silentAudio = null;
+
 function initAudio() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1146,15 +1152,22 @@ function initAudio() {
   if (audioCtx.state === 'suspended') {
     audioCtx.resume();
   }
-  // iOS Safari requires actually playing audio during a user gesture to unlock
   if (!audioUnlocked) {
-    const unlock = audioCtx.createOscillator();
-    const silentGain = audioCtx.createGain();
-    silentGain.gain.value = 0;
-    unlock.connect(silentGain);
-    silentGain.connect(audioCtx.destination);
-    unlock.start();
-    unlock.stop(audioCtx.currentTime + 0.001);
+    // 1. Play silent HTML5 <audio> — unlocks iOS audio session,
+    //    bypasses hardware mute switch
+    if (!silentAudio) {
+      silentAudio = new Audio(SILENT_MP3);
+      silentAudio.setAttribute('playsinline', '');
+    }
+    silentAudio.play().catch(() => {});
+    // 2. Also play a silent oscillator — belt and suspenders
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    g.gain.value = 0;
+    osc.connect(g);
+    g.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.01);
     audioUnlocked = true;
   }
 }
@@ -1251,39 +1264,42 @@ function stopChiptune() {
 }
 
 // SFX — short one-shot sounds, all route through sfxGain
-// Helper: creates osc+gain connected to sfxGain, returns {osc, gain}
-function makeTone(type, freq) {
-  const osc = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
-  osc.type = type;
-  osc.frequency.value = freq;
-  g.gain.value = 0;
-  osc.connect(g);
-  g.connect(sfxGain);
-  return { osc, g };
-}
+//
+// MOBILE SAFARI RULES:
+// 1. Never use setValueAtTime(x, now) �� "now" is already past on the
+//    audio thread. Set gain.value directly for immediate values.
+// 2. For future-scheduled notes, offset by at least 0.01s.
+// 3. exponentialRampToValueAtTime needs a prior anchor — use
+//    setValueAtTime at a future time BEFORE the ramp target time.
 
 function sfxHit() {
   if (!soundEnabled || !audioCtx || !sfxGain) return;
-  const now = audioCtx.currentTime;
-  const { osc, g } = makeTone('sawtooth', 400);
+  const now = audioCtx.currentTime + 0.01;
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(400, now);
   osc.frequency.exponentialRampToValueAtTime(80, now + 0.18);
   g.gain.setValueAtTime(0.6, now);
   g.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+  osc.connect(g); g.connect(sfxGain);
   osc.start(now); osc.stop(now + 0.25);
 }
 
 function sfxSuperHit() {
   if (!soundEnabled || !audioCtx || !sfxGain) return;
-  const now = audioCtx.currentTime;
+  const now = audioCtx.currentTime + 0.01;
   [0, 30].forEach(detune => {
-    const { osc, g } = makeTone('sawtooth', 250 + detune);
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(250 + detune, now);
     osc.frequency.exponentialRampToValueAtTime(40, now + 0.3);
     g.gain.setValueAtTime(0.5, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc.connect(g); g.connect(sfxGain);
     osc.start(now); osc.stop(now + 0.38);
   });
-  // Noise burst
   const bufSize = audioCtx.sampleRate * 0.1;
   const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
   const d = buf.getChannelData(0);
@@ -1299,32 +1315,39 @@ function sfxSuperHit() {
 
 function sfxGood() {
   if (!soundEnabled || !audioCtx || !sfxGain) return;
-  const now = audioCtx.currentTime;
+  const now = audioCtx.currentTime + 0.01;
   [523, 659, 784].forEach((freq, i) => {
-    const { osc, g } = makeTone('square', freq);
-    const t = now + i * 0.07;
-    // Each note: start at its scheduled time, fade out after
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.value = freq;
+    const t = now + i * 0.08;
     g.gain.setValueAtTime(0.35, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    osc.connect(g); g.connect(sfxGain);
     osc.start(t); osc.stop(t + 0.15);
   });
 }
 
 function sfxCoffee() {
   if (!soundEnabled || !audioCtx || !sfxGain) return;
-  const now = audioCtx.currentTime;
+  const now = audioCtx.currentTime + 0.01;
   [523, 659, 784, 1047, 1319].forEach((freq, i) => {
-    const { osc, g } = makeTone('square', freq);
-    const t = now + i * 0.07;
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.value = freq;
+    const t = now + i * 0.08;
     g.gain.setValueAtTime(0.35, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    osc.connect(g); g.connect(sfxGain);
     osc.start(t); osc.stop(t + 0.25);
   });
 }
 
 function sfxGameOver() {
   if (!soundEnabled || !audioCtx || !sfxGain) return;
-  const now = audioCtx.currentTime;
+  const now = audioCtx.currentTime + 0.01;
   [
     { freq: 784, time: 0,    dur: 0.18 },
     { freq: 659, time: 0.22, dur: 0.18 },
@@ -1334,18 +1357,26 @@ function sfxGameOver() {
     { freq: 294, time: 1.08, dur: 0.15 },
     { freq: 220, time: 1.30, dur: 0.5  },
   ].forEach(n => {
-    const { osc, g } = makeTone('square', n.freq);
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.value = n.freq;
     const t = now + n.time;
     g.gain.setValueAtTime(0.4, t);
     g.gain.setValueAtTime(0.4, t + n.dur * 0.6);
     g.gain.exponentialRampToValueAtTime(0.001, t + n.dur);
+    osc.connect(g); g.connect(sfxGain);
     osc.start(t); osc.stop(t + n.dur + 0.05);
   });
   // Final low rumble
-  const { osc: bass, g: bg } = makeTone('triangle', 110);
+  const bass = audioCtx.createOscillator();
+  const bg = audioCtx.createGain();
+  bass.type = 'triangle';
+  bass.frequency.value = 110;
   const bt = now + 1.35;
   bg.gain.setValueAtTime(0.5, bt);
   bg.gain.exponentialRampToValueAtTime(0.001, bt + 0.7);
+  bass.connect(bg); bg.connect(sfxGain);
   bass.start(bt); bass.stop(bt + 0.75);
 }
 
@@ -1414,11 +1445,8 @@ document.addEventListener('keydown', (e) => {
 let touchStartX = 0, touchStartY = 0, touchTime = 0;
 
 document.addEventListener('touchstart', (e) => {
-  // Keep audio alive on every touch — mobile browsers re-suspend aggressively
-  if (audioCtx) {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    if (!audioUnlocked) initAudio();
-  }
+  // Full unlock on every touch — iOS can re-suspend aggressively
+  initAudio();
   touchStartX = e.touches[0].clientX;
   touchStartY = e.touches[0].clientY;
   touchTime = Date.now();
