@@ -291,11 +291,25 @@
     cursor: pointer;
     margin-top: 4px;
   }
+
+  /* Audio debug banner — temporary */
+  #audio-debug {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: #000;
+    color: #0f0;
+    font: 10px monospace;
+    padding: 4px 8px;
+    z-index: 9999;
+    max-height: 60px;
+    overflow: auto;
+  }
 </style>
 </head>
 <body>
 
 <canvas id="game"></canvas>
+<div id="audio-debug">audio: waiting</div>
 
 <!-- HUD -->
 <div id="hud">
@@ -1121,6 +1135,10 @@ function render() {
 function gameLoop() {
   update();
   render();
+  // Debug: show audio state every 120 frames (~2sec)
+  if (audioCtx && G.frameCount % 120 === 0) {
+    alog('playing: state=' + audioCtx.state + ' t=' + audioCtx.currentTime.toFixed(1) + ' music=' + musicPlaying + ' snd=' + soundEnabled);
+  }
   if (G.running) requestAnimationFrame(gameLoop);
 }
 
@@ -1135,37 +1153,48 @@ let musicNodes = [];
 let musicInterval = null;
 let soundEnabled = true;
 
-// Unlock audio — MUST run synchronously inside a user gesture (click/tap).
-// iOS Safari kills audio if you break the synchronous call stack (no await!).
-// The pattern: create context + resume + play something — all in one sync stack.
+// Debug helper
+function alog(msg) {
+  const el = document.getElementById('audio-debug');
+  if (el) el.textContent = msg;
+}
+
 function unlockAudio() {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    sfxGain = audioCtx.createGain();
-    sfxGain.gain.value = 0.5;
-    sfxGain.connect(audioCtx.destination);
+  try {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      sfxGain = audioCtx.createGain();
+      sfxGain.gain.value = 0.5;
+      sfxGain.connect(audioCtx.destination);
+      alog('ctx created: ' + audioCtx.state + ' sr:' + audioCtx.sampleRate);
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().then(() => {
+        alog('resumed→' + audioCtx.state + ' t:' + audioCtx.currentTime.toFixed(2));
+      });
+    }
+    // Play a real sound — oscillator start() in user gesture stack
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    g.gain.value = 0.001;
+    osc.connect(g);
+    g.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.05);
+    alog('unlock: ' + audioCtx.state + ' t:' + audioCtx.currentTime.toFixed(3));
+  } catch (e) {
+    alog('ERROR: ' + e.message);
   }
-  // resume() — don't await. Calling it synchronously in a user gesture
-  // is what tells the browser "the user wants audio." The state transition
-  // happens async but the PERMISSION is granted synchronously.
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
-  // Play a real (tiny) sound synchronously — this is what iOS actually
-  // checks. An oscillator start() in the user gesture stack = unlocked.
-  const osc = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
-  g.gain.value = 0.001; // near-silent but not zero — zero can be optimized away
-  osc.connect(g);
-  g.connect(audioCtx.destination);
-  osc.start();
-  osc.stop(audioCtx.currentTime + 0.001);
 }
 
 function playChiptune() {
-  if (!soundEnabled || !audioCtx) return;
+  if (!soundEnabled || !audioCtx) {
+    alog('chiptune skip: enabled=' + soundEnabled + ' ctx=' + !!audioCtx);
+    return;
+  }
   stopChiptune();
   musicPlaying = true;
+  alog('chiptune START: state=' + audioCtx.state + ' t=' + audioCtx.currentTime.toFixed(2));
 
   const masterGain = audioCtx.createGain();
   masterGain.gain.value = 0.12;
