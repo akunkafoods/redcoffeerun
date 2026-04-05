@@ -1130,44 +1130,40 @@ function gameLoop() {
 
 let audioCtx = null;
 let sfxGain = null;
-let audioReady = false;
 let musicPlaying = false;
 let musicNodes = [];
 let musicInterval = null;
 let soundEnabled = true;
 
-// Fully unlock audio — MUST be called from a user gesture (click/tap).
-// Returns a Promise that resolves when audio is truly ready to play.
-async function ensureAudio() {
-  if (audioReady && audioCtx && audioCtx.state === 'running') return;
-
+// Unlock audio — MUST run synchronously inside a user gesture (click/tap).
+// iOS Safari kills audio if you break the synchronous call stack (no await!).
+// The pattern: create context + resume + play something — all in one sync stack.
+function unlockAudio() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     sfxGain = audioCtx.createGain();
     sfxGain.gain.value = 0.5;
     sfxGain.connect(audioCtx.destination);
   }
-
-  // AWAIT resume — this is the key fix. Without await, the context
-  // is still suspended when we try to schedule audio.
-  if (audioCtx.state !== 'running') {
-    await audioCtx.resume();
+  // resume() — don't await. Calling it synchronously in a user gesture
+  // is what tells the browser "the user wants audio." The state transition
+  // happens async but the PERMISSION is granted synchronously.
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
   }
-
-  if (!audioReady) {
-    // Play a silent AudioBuffer — most reliable cross-browser unlock.
-    // This also switches iOS audio session to "playback" mode.
-    const buf = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
-    const src = audioCtx.createBufferSource();
-    src.buffer = buf;
-    src.connect(audioCtx.destination);
-    src.start();
-    audioReady = true;
-  }
+  // Play a real (tiny) sound synchronously — this is what iOS actually
+  // checks. An oscillator start() in the user gesture stack = unlocked.
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  g.gain.value = 0.001; // near-silent but not zero — zero can be optimized away
+  osc.connect(g);
+  g.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.001);
 }
 
 function playChiptune() {
-  if (!soundEnabled || !audioCtx || audioCtx.state !== 'running') return;
+  if (!soundEnabled || !audioCtx) return;
   stopChiptune();
   musicPlaying = true;
 
@@ -1267,7 +1263,7 @@ function stopChiptune() {
 //    setValueAtTime at a future time BEFORE the ramp target time.
 
 function sfxHit() {
-  if (!soundEnabled || !audioCtx || !sfxGain || audioCtx.state !== 'running') return;
+  if (!soundEnabled || !audioCtx || !sfxGain) return;
   const now = audioCtx.currentTime + 0.01;
   const osc = audioCtx.createOscillator();
   const g = audioCtx.createGain();
@@ -1281,7 +1277,7 @@ function sfxHit() {
 }
 
 function sfxSuperHit() {
-  if (!soundEnabled || !audioCtx || !sfxGain || audioCtx.state !== 'running') return;
+  if (!soundEnabled || !audioCtx || !sfxGain) return;
   const now = audioCtx.currentTime + 0.01;
   [0, 30].forEach(detune => {
     const osc = audioCtx.createOscillator();
@@ -1308,7 +1304,7 @@ function sfxSuperHit() {
 }
 
 function sfxGood() {
-  if (!soundEnabled || !audioCtx || !sfxGain || audioCtx.state !== 'running') return;
+  if (!soundEnabled || !audioCtx || !sfxGain) return;
   const now = audioCtx.currentTime + 0.01;
   [523, 659, 784].forEach((freq, i) => {
     const osc = audioCtx.createOscillator();
@@ -1324,7 +1320,7 @@ function sfxGood() {
 }
 
 function sfxCoffee() {
-  if (!soundEnabled || !audioCtx || !sfxGain || audioCtx.state !== 'running') return;
+  if (!soundEnabled || !audioCtx || !sfxGain) return;
   const now = audioCtx.currentTime + 0.01;
   [523, 659, 784, 1047, 1319].forEach((freq, i) => {
     const osc = audioCtx.createOscillator();
@@ -1340,7 +1336,7 @@ function sfxCoffee() {
 }
 
 function sfxGameOver() {
-  if (!soundEnabled || !audioCtx || !sfxGain || audioCtx.state !== 'running') return;
+  if (!soundEnabled || !audioCtx || !sfxGain) return;
   const now = audioCtx.currentTime + 0.01;
   [
     { freq: 784, time: 0,    dur: 0.18 },
@@ -1374,8 +1370,8 @@ function sfxGameOver() {
   bass.start(bt); bass.stop(bt + 0.75);
 }
 
-async function toggleSound() {
-  await ensureAudio();
+function toggleSound() {
+  unlockAudio();
   soundEnabled = !soundEnabled;
   document.getElementById('sound-btn').textContent = soundEnabled ? '🔊' : '🔇';
   if (soundEnabled && G.running) playChiptune();
@@ -1386,7 +1382,7 @@ async function toggleSound() {
 // LIFECYCLE
 // ============================================================
 
-async function startGame() {
+function startGame() {
   resetState();
   G.running = true;
   G.cellX = getCenterX();
@@ -1395,8 +1391,9 @@ async function startGame() {
   document.getElementById('gameover').classList.remove('active');
   document.getElementById('hud').classList.add('active');
 
-  // AWAIT audio — context must be 'running' before scheduling sounds
-  await ensureAudio();
+  // Unlock + play — ALL synchronous in the click handler stack.
+  // iOS requires oscillator.start() in the same sync stack as the gesture.
+  unlockAudio();
   if (soundEnabled) playChiptune();
 
   flash('SURVIVE THE GRIND!', '#e84a27');
@@ -1440,15 +1437,8 @@ document.addEventListener('keydown', (e) => {
 let touchStartX = 0, touchStartY = 0, touchTime = 0;
 
 document.addEventListener('touchstart', (e) => {
-  // Pre-warm audio on every touch — creates context early so
-  // startGame's await ensureAudio() resolves faster
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    sfxGain = audioCtx.createGain();
-    sfxGain.gain.value = 0.5;
-    sfxGain.connect(audioCtx.destination);
-  }
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+  // Unlock on every touch — user gesture stack is required
+  unlockAudio();
   touchStartX = e.touches[0].clientX;
   touchStartY = e.touches[0].clientY;
   touchTime = Date.now();
