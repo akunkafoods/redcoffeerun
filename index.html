@@ -76,6 +76,20 @@
     text-shadow: 0 1px 2px rgba(0,0,0,0.8);
   }
 
+  .hud-sound {
+    position: absolute;
+    left: 50%; transform: translateX(-50%);
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 50%;
+    width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    cursor: pointer;
+    color: #fff;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   .hud-right {
     text-align: right;
     display: flex;
@@ -122,6 +136,7 @@
     text-shadow: 0 0 30px rgba(232, 74, 39, 0.4), 0 4px 0 #8b1a0a;
     letter-spacing: 3px;
     line-height: 1;
+    text-align: center;
   }
   .s-subtitle {
     font-family: 'Bangers', cursive;
@@ -291,6 +306,7 @@
       <div id="energy-label">EQUILIBRIUM</div>
     </div>
   </div>
+  <div class="hud-sound" id="sound-btn">🔊</div>
   <div class="hud-right">
     <div class="hud-score" id="hud-score">0</div>
     <div class="hud-coffees" id="hud-coffees">☕ 0</div>
@@ -370,6 +386,13 @@ const BAD_ITEMS = [
   { emoji: '🍺', label: 'One More Drink', damage: 16, color: '#cc6633', desc: 'Liver says no!' },
   { emoji: '💻', label: 'Endless Meeting', damage: 11, color: '#ff4466', desc: 'Brain drain!' },
   { emoji: '😰', label: 'Anxiety Spiral', damage: 13, color: '#dd44dd', desc: 'Cortisol flooding!' },
+];
+
+// SUPER DAMAGE — fast, deadly, appear after score 200
+const SUPER_ITEMS = [
+  { emoji: '🔥', label: 'Burnout Wave', damage: 25, color: '#ff2200', desc: '🔥 BURNOUT WAVE!' },
+  { emoji: '⚡', label: 'Energy Crash', damage: 22, color: '#ff00aa', desc: '⚡ ENERGY CRASH!' },
+  { emoji: '🌪️', label: 'Chaos Day', damage: 20, color: '#ff3366', desc: '🌪️ TOTAL CHAOS!' },
 ];
 
 // GOOD ITEMS — green/blue glow, calm, smooth
@@ -627,7 +650,31 @@ function drawItem(item) {
   const bob = Math.sin(G.frameCount * 0.08 + item.y * 0.01) * 3;
 
   // Background indicator — clear visual language
-  if (item.kind === 'bad') {
+  if (item.kind === 'super') {
+    // Super damage — intense pulsing red/magenta aura, bigger
+    const pulse = 0.4 + Math.sin(G.frameCount * 0.2) * 0.2;
+    ctx.beginPath();
+    ctx.arc(item.x, item.y + bob, 32, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 0, 60, ${pulse * 0.35})`;
+    ctx.shadowColor = item.data.color;
+    ctx.shadowBlur = 20;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Spinning jagged ring
+    ctx.strokeStyle = `rgba(255, 40, 80, ${0.5 + Math.sin(G.frameCount * 0.15) * 0.3})`;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    const spin = G.frameCount * 0.04;
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2 + spin;
+      const r = i % 2 === 0 ? 28 : 20;
+      const px = item.x + Math.cos(a) * r;
+      const py = item.y + bob + Math.sin(a) * r;
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.stroke();
+  } else if (item.kind === 'bad') {
     // Red jagged glow
     ctx.beginPath();
     ctx.arc(item.x, item.y + bob, 24, 0, Math.PI * 2);
@@ -768,6 +815,12 @@ function drawItem(item) {
     ctx.fillStyle = '#e84a27';
     ctx.textAlign = 'center';
     ctx.fillText('RED COFFEE', cx, cy + 24*s);
+  } else if (item.kind === 'super') {
+    // Super items — larger emoji
+    ctx.font = '34px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(item.data.emoji, item.x, item.y + bob);
   } else {
     // Emoji for non-coffee items
     ctx.font = '26px serif';
@@ -842,21 +895,28 @@ function spawnItem() {
   const lane = LANES[Math.floor(Math.random() * 3)];
   const roll = Math.random();
 
-  // Red Coffee — less frequent, more valuable
-  const coffeeChance = G.frameCount - G.lastCoffeeSpawn > 300 ? 0.12 : 0.03;
+  // Red Coffee — rare, each one matters
+  const coffeeChance = G.frameCount - G.lastCoffeeSpawn > 400 ? 0.08 : 0.015;
+
+  // Super damage — unlocks after score 200, 8% chance
+  const superChance = G.score > 200 ? 0.08 : 0;
 
   let item;
   if (roll < coffeeChance) {
-    item = { x: laneToX(lane), y: -40, lane, kind: 'coffee', data: RED_COFFEE, w: 30, h: 30 };
+    item = { x: laneToX(lane), y: -40, lane, kind: 'coffee', data: RED_COFFEE, w: 30, h: 30, speedMult: 1 };
     G.lastCoffeeSpawn = G.frameCount;
+  } else if (roll < coffeeChance + superChance) {
+    // Super damage item — falls 1.6x faster, bigger
+    const type = SUPER_ITEMS[Math.floor(Math.random() * SUPER_ITEMS.length)];
+    item = { x: laneToX(lane), y: -40, lane, kind: 'super', data: type, w: 34, h: 34, speedMult: 1.6 };
   } else if (roll < 0.55) {
     // Bad item
     const type = BAD_ITEMS[Math.floor(Math.random() * BAD_ITEMS.length)];
-    item = { x: laneToX(lane), y: -40, lane, kind: 'bad', data: type, w: 28, h: 28 };
+    item = { x: laneToX(lane), y: -40, lane, kind: 'bad', data: type, w: 28, h: 28, speedMult: 1 };
   } else {
     // Good item
     const type = GOOD_ITEMS[Math.floor(Math.random() * GOOD_ITEMS.length)];
-    item = { x: laneToX(lane), y: -40, lane, kind: 'good', data: type, w: 26, h: 26 };
+    item = { x: laneToX(lane), y: -40, lane, kind: 'good', data: type, w: 26, h: 26, speedMult: 1 };
   }
 
   G.items.push(item);
@@ -940,7 +1000,7 @@ function update() {
   const cellY = getCellY();
   for (let i = G.items.length - 1; i >= 0; i--) {
     const item = G.items[i];
-    item.y += G.speed;
+    item.y += G.speed * (item.speedMult || 1);
 
     if (item.y > canvas.height + 50) {
       G.items.splice(i, 1);
@@ -950,7 +1010,19 @@ function update() {
     // Collision
     if (!checkCollision(G.cellX, cellY, item)) continue;
 
-    if (item.kind === 'bad') {
+    if (item.kind === 'super') {
+      if (G.equilibriumTimer > 0) {
+        G.energy -= item.data.damage * 0.4;
+        flash(item.data.desc + ' (shielded!)', '#88ffcc');
+        spawnParticles(item.x, item.y, '#44ff88', 8, 'circle');
+      } else {
+        G.energy -= item.data.damage;
+        G.comboGood = 0;
+        flash(item.data.desc, '#ff0044');
+        spawnParticles(item.x, item.y, item.data.color, 16, 'star');
+        shake(10, 12);
+      }
+    } else if (item.kind === 'bad') {
       if (G.equilibriumTimer > 0) {
         // Shield from equilibrium — reduced damage
         G.energy -= item.data.damage * 0.3;
@@ -1047,6 +1119,119 @@ function gameLoop() {
 }
 
 // ============================================================
+// RETRO CHIPTUNE MUSIC — Web Audio API
+// ============================================================
+
+let audioCtx = null;
+let musicPlaying = false;
+let musicNodes = [];
+let musicInterval = null;
+let soundEnabled = true;
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function playChiptune() {
+  if (!soundEnabled || !audioCtx) return;
+  stopChiptune();
+  musicPlaying = true;
+
+  const masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.12;
+  masterGain.connect(audioCtx.destination);
+  musicNodes.push(masterGain);
+
+  // Melody — pentatonic scale, upbeat retro feel
+  const melody = [
+    392, 440, 523, 587, 659, 523, 440, 392, // G4 A4 C5 D5 E5 C5 A4 G4
+    440, 523, 587, 659, 784, 659, 587, 523, // A4 C5 D5 E5 G5 E5 D5 C5
+    523, 587, 659, 784, 659, 587, 523, 440, // C5 D5 E5 G5 E5 D5 C5 A4
+    392, 440, 523, 440, 392, 330, 392, 440, // G4 A4 C5 A4 G4 E4 G4 A4
+  ];
+
+  // Bass line
+  const bass = [
+    196, 196, 220, 220, 262, 262, 220, 220, // G3 G3 A3 A3 C4 C4 A3 A3
+    196, 196, 262, 262, 330, 330, 262, 262, // repeat pattern
+    262, 262, 330, 330, 392, 392, 330, 330,
+    196, 196, 220, 220, 196, 196, 165, 165,
+  ];
+
+  let step = 0;
+  const bpm = 140;
+  const stepTime = 60 / bpm / 2; // 8th notes
+
+  function playStep() {
+    if (!musicPlaying || !audioCtx) return;
+    const now = audioCtx.currentTime;
+    const idx = step % melody.length;
+
+    // Melody voice — square wave
+    const melOsc = audioCtx.createOscillator();
+    const melGain = audioCtx.createGain();
+    melOsc.type = 'square';
+    melOsc.frequency.value = melody[idx];
+    melGain.gain.setValueAtTime(0.3, now);
+    melGain.gain.exponentialRampToValueAtTime(0.01, now + stepTime * 0.8);
+    melOsc.connect(melGain);
+    melGain.connect(masterGain);
+    melOsc.start(now);
+    melOsc.stop(now + stepTime * 0.9);
+
+    // Bass voice — triangle wave, every other step
+    if (step % 2 === 0) {
+      const bassOsc = audioCtx.createOscillator();
+      const bassGain = audioCtx.createGain();
+      bassOsc.type = 'triangle';
+      bassOsc.frequency.value = bass[idx];
+      bassGain.gain.setValueAtTime(0.4, now);
+      bassGain.gain.exponentialRampToValueAtTime(0.01, now + stepTime * 1.6);
+      bassOsc.connect(bassGain);
+      bassGain.connect(masterGain);
+      bassOsc.start(now);
+      bassOsc.stop(now + stepTime * 1.8);
+    }
+
+    // Hihat noise — every 4th step
+    if (step % 4 === 0) {
+      const bufSize = audioCtx.sampleRate * 0.02;
+      const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * 0.3;
+      const noise = audioCtx.createBufferSource();
+      const noiseGain = audioCtx.createGain();
+      noise.buffer = buf;
+      noiseGain.gain.setValueAtTime(0.15, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+      noise.connect(noiseGain);
+      noiseGain.connect(masterGain);
+      noise.start(now);
+    }
+
+    step++;
+  }
+
+  musicInterval = setInterval(playStep, stepTime * 1000);
+  playStep(); // start immediately
+}
+
+function stopChiptune() {
+  musicPlaying = false;
+  if (musicInterval) { clearInterval(musicInterval); musicInterval = null; }
+  musicNodes.forEach(n => { try { n.disconnect(); } catch(e) {} });
+  musicNodes = [];
+}
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  document.getElementById('sound-btn').textContent = soundEnabled ? '🔊' : '🔇';
+  if (soundEnabled && G.running) playChiptune();
+  else stopChiptune();
+}
+
+// ============================================================
 // LIFECYCLE
 // ============================================================
 
@@ -1059,12 +1244,16 @@ function startGame() {
   document.getElementById('gameover').classList.remove('active');
   document.getElementById('hud').classList.add('active');
 
+  initAudio();
+  if (soundEnabled) playChiptune();
+
   flash('SURVIVE THE GRIND!', '#e84a27');
   gameLoop();
 }
 
 function gameOver() {
   G.running = false;
+  stopChiptune();
 
   if (G.score > G.bestScore) {
     G.bestScore = G.score;
@@ -1121,6 +1310,7 @@ document.addEventListener('touchend', (e) => {
 // Buttons
 document.getElementById('start-btn').addEventListener('click', startGame);
 document.getElementById('restart-btn').addEventListener('click', startGame);
+document.getElementById('sound-btn').addEventListener('click', toggleSound);
 document.getElementById('go-link').addEventListener('click', () => {
   // Link to Red Coffee product or science page
   window.open('https://akunkafoods.com', '_blank');
