@@ -21,12 +21,13 @@
     user-select: none;
   }
 
-  canvas { display: block; }
+  canvas { display: block; margin: 0 auto; }
 
   /* HUD */
   #hud {
     position: fixed;
-    top: 0; left: 0; right: 0;
+    top: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 420px;
     padding: 10px 14px;
     display: none;
     justify-content: space-between;
