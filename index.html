@@ -292,24 +292,11 @@
     margin-top: 4px;
   }
 
-  /* Audio debug banner — temporary */
-  #audio-debug {
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
-    background: #000;
-    color: #0f0;
-    font: 10px monospace;
-    padding: 4px 8px;
-    z-index: 9999;
-    max-height: 60px;
-    overflow: auto;
-  }
 </style>
 </head>
 <body>
 
 <canvas id="game"></canvas>
-<div id="audio-debug">audio: waiting</div>
 
 <!-- HUD -->
 <div id="hud">
@@ -1135,10 +1122,6 @@ function render() {
 function gameLoop() {
   update();
   render();
-  // Debug: show audio state every 120 frames (~2sec)
-  if (audioCtx && G.frameCount % 120 === 0) {
-    alog('playing: state=' + audioCtx.state + ' t=' + audioCtx.currentTime.toFixed(1) + ' music=' + musicPlaying + ' snd=' + soundEnabled);
-  }
   if (G.running) requestAnimationFrame(gameLoop);
 }
 
@@ -1153,51 +1136,33 @@ let musicNodes = [];
 let musicInterval = null;
 let soundEnabled = true;
 
-// Debug helper
-function alog(msg) {
-  const el = document.getElementById('audio-debug');
-  if (el) el.textContent = msg;
-}
-
 function unlockAudio() {
-  try {
-    if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      sfxGain = audioCtx.createGain();
-      sfxGain.gain.value = 0.5;
-      sfxGain.connect(audioCtx.destination);
-      alog('ctx created: ' + audioCtx.state + ' sr:' + audioCtx.sampleRate);
-    }
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume().then(() => {
-        alog('resumed→' + audioCtx.state + ' t:' + audioCtx.currentTime.toFixed(2));
-      });
-    }
-    // Play a real sound — oscillator start() in user gesture stack
-    const osc = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    g.gain.value = 0.001;
-    osc.connect(g);
-    g.connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.05);
-    alog('unlock: ' + audioCtx.state + ' t:' + audioCtx.currentTime.toFixed(3));
-  } catch (e) {
-    alog('ERROR: ' + e.message);
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    sfxGain = audioCtx.createGain();
+    sfxGain.gain.value = 0.9;
+    sfxGain.connect(audioCtx.destination);
   }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  // Play a near-silent sound in user gesture stack — iOS unlock
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  g.gain.value = 0.001;
+  osc.connect(g);
+  g.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.05);
 }
 
 function playChiptune() {
-  if (!soundEnabled || !audioCtx) {
-    alog('chiptune skip: enabled=' + soundEnabled + ' ctx=' + !!audioCtx);
-    return;
-  }
+  if (!soundEnabled || !audioCtx) return;
   stopChiptune();
   musicPlaying = true;
-  alog('chiptune START: state=' + audioCtx.state + ' t=' + audioCtx.currentTime.toFixed(2));
 
   const masterGain = audioCtx.createGain();
-  masterGain.gain.value = 0.12;
+  masterGain.gain.value = 0.45;
   masterGain.connect(audioCtx.destination);
   musicNodes.push(masterGain);
 
