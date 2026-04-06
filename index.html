@@ -1036,7 +1036,7 @@ function update() {
         G.energy -= item.data.damage * 0.3;
         flash(item.data.desc + ' (shielded!)', '#88ffcc');
         spawnParticles(item.x, item.y, '#44ff88', 6, 'circle');
-        sfxGood();
+        sfxHit();
       } else {
         G.energy -= item.data.damage;
         G.comboGood = 0;
