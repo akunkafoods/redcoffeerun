@@ -171,7 +171,12 @@
   }
   .dot-good { background: #44ff88; box-shadow: 0 0 6px #44ff88; }
   .dot-bad { background: #ff4444; box-shadow: 0 0 6px #ff4444; }
-  .dot-coffee { background: #e84a27; box-shadow: 0 0 8px #e84a27; }
+  .dot-coffee {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: radial-gradient(circle at 40% 40%, #ff6644, #e84a27 50%, #991500);
+    box-shadow: 0 0 8px rgba(232,74,39,0.6);
+    border: 1.5px solid #ffcc44;
+  }
 
   .start-btn {
     font-family: 'Bangers', cursive;
@@ -301,7 +306,7 @@
 <!-- HUD -->
 <div id="hud">
   <div class="hud-energy-wrap">
-    <div class="hud-label">ENERGY</div>
+    <div class="hud-label">HEALTH</div>
     <div id="energy-bar-bg">
       <div id="energy-bar"></div>
       <div id="energy-label">EQUILIBRIUM</div>
@@ -323,8 +328,8 @@
     You're a cell navigating daily life chaos. Dodge the bad stuff. Grab what helps. Find Red Coffee to restore equilibrium.
   </div>
   <div class="s-legend">
-    <div class="s-legend-item"><div class="s-legend-dot dot-good"></div> Helps</div>
-    <div class="s-legend-item"><div class="s-legend-dot dot-bad"></div> Hurts</div>
+    <div class="s-legend-item"><div class="s-legend-dot dot-good"></div> Repair</div>
+    <div class="s-legend-item"><div class="s-legend-dot dot-bad"></div> Damage</div>
     <div class="s-legend-item"><div class="s-legend-dot dot-coffee"></div> Red Coffee</div>
   </div>
   <button class="start-btn" id="start-btn">TAP TO RUN</button>
@@ -1075,13 +1080,13 @@ function update() {
     document.getElementById('energy-label').textContent = '⚡ EQUILIBRIUM ⚡';
   } else if (G.energy < 25) {
     ebar.style.background = '#ff4444';
-    document.getElementById('energy-label').textContent = 'LOW ENERGY';
+    document.getElementById('energy-label').textContent = 'CRITICAL';
   } else if (G.energy < 50) {
     ebar.style.background = 'linear-gradient(90deg, #ff4444, #ffaa00)';
-    document.getElementById('energy-label').textContent = 'DRAINING...';
+    document.getElementById('energy-label').textContent = 'DECLINING';
   } else {
     ebar.style.background = 'linear-gradient(90deg, #ffaa00, #44ff88)';
-    document.getElementById('energy-label').textContent = 'ENERGY';
+    document.getElementById('energy-label').textContent = 'HEALTH';
   }
 
   // Death
