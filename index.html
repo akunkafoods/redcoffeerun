@@ -941,7 +941,18 @@ function shake(intensity, duration) {
 
 function checkCollision(cellX, cellY, item) {
   const dist = Math.sqrt((cellX - item.x) ** 2 + ((cellY - G.jumpY) - item.y) ** 2);
-  return dist < 34;
+
+  // Base radius 34. Red Coffee gets a bigger collision radius (38) because
+  // it's the hero pickup and players should not feel robbed when reaching for it.
+  // During active lane transitions (cellX far from target lane), extend radius
+  // by 6px to catch near-misses on fast-moving items at high speeds.
+  const targetX = laneToX(G.targetLane);
+  const inTransition = Math.abs(cellX - targetX) > 8;
+
+  let radius = item.kind === 'coffee' ? 38 : 34;
+  if (inTransition) radius += 6;
+
+  return dist < radius;
 }
 
 function update() {
@@ -978,9 +989,9 @@ function update() {
   // Shake countdown
   if (G.shakeTimer > 0) G.shakeTimer--;
 
-  // Lane interpolation
+  // Lane interpolation — snappier response (was 0.2, now 0.35)
   const targetX = laneToX(G.targetLane);
-  G.cellX += (targetX - G.cellX) * 0.2;
+  G.cellX += (targetX - G.cellX) * 0.35;
 
   // Jump
   if (G.isJumping) {
