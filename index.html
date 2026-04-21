@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Red Coffee Run — Akunka</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bangers&family=DM+Sans:wght@400;600;700&display=swap');
 
@@ -21,7 +22,7 @@
     user-select: none;
   }
 
-  canvas { display: block; margin: 0 auto; }
+  canvas#game { display: block; margin: 0 auto; }
 
   /* HUD */
   #hud {
@@ -202,17 +203,19 @@
     letter-spacing: 1px;
   }
 
-  /* Game Over */
+  /* Game Over — Stage A */
   #gameover {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(10, 10, 18, 0.94);
+    background: rgba(10, 10, 18, 0.96);
     display: none;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     z-index: 100;
     gap: 10px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   #gameover.active { display: flex; }
 
@@ -230,71 +233,548 @@
     max-width: 260px;
     line-height: 1.5;
   }
-  .go-stats {
+  .go-rc-hero {
     display: flex;
-    gap: 20px;
-    margin: 8px 0;
+    align-items: center;
+    gap: 10px;
+    margin: 6px 0;
   }
-  .go-stat {
-    text-align: center;
+  .go-rc-hero img {
+    width: 48px; height: 48px;
   }
-  .go-stat-val {
+  .go-rc-count {
     font-family: 'Bangers', cursive;
-    font-size: 24px;
-    color: #fff;
-  }
-  .go-stat-label {
-    font-size: 9px;
-    color: #888;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-  }
-
-  .go-insight-box {
-    background: rgba(232, 74, 39, 0.08);
-    border: 1px solid rgba(232, 74, 39, 0.25);
-    border-radius: 10px;
-    padding: 12px 16px;
-    max-width: 290px;
-    text-align: center;
-  }
-  .go-insight-label {
-    font-family: 'Bangers', cursive;
-    font-size: 10px;
+    font-size: 22px;
     color: #e84a27;
-    letter-spacing: 2px;
-    margin-bottom: 4px;
+    letter-spacing: 1px;
   }
-  .go-insight-text {
-    font-size: 11px;
-    color: #bbb;
+  .go-archetype {
+    text-align: center;
+    margin: 4px 0;
+  }
+  .go-archetype-emoji {
+    font-size: 36px;
+    line-height: 1;
+  }
+  .go-archetype-name {
+    font-family: 'Bangers', cursive;
+    font-size: 20px;
+    color: #fff;
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+  .go-archetype-tagline {
+    font-size: 12px;
+    color: #aaa;
+    font-style: italic;
+    max-width: 280px;
+    text-align: center;
     line-height: 1.5;
   }
 
+  .cta-btn {
+    font-family: 'Bangers', cursive;
+    font-size: 13px;
+    color: #fff;
+    background: #e84a27;
+    border: none;
+    padding: 14px 24px;
+    border-radius: 10px;
+    cursor: pointer;
+    margin-top: 8px;
+    box-shadow: 0 4px 0 #8b1a0a;
+    letter-spacing: 1.5px;
+    text-align: center;
+    line-height: 1.3;
+  }
+  .cta-btn:active {
+    transform: translateY(4px);
+    box-shadow: 0 0 0 #8b1a0a;
+  }
   .restart-btn {
+    font-family: 'Bangers', cursive;
+    font-size: 14px;
+    color: #fff;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    padding: 10px 28px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: 4px;
+    letter-spacing: 2px;
+  }
+  .restart-btn:active {
+    background: rgba(255,255,255,0.15);
+  }
+
+  /* Capture Modal */
+  #capture-modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(10, 10, 18, 0.97);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    gap: 14px;
+    padding: 20px;
+  }
+  #capture-modal.active { display: flex; }
+
+  .cap-title {
+    font-family: 'Bangers', cursive;
+    font-size: 18px;
+    color: #e84a27;
+    letter-spacing: 2px;
+    text-align: center;
+  }
+  .cap-subtitle {
+    font-size: 12px;
+    color: #888;
+    text-align: center;
+    max-width: 280px;
+  }
+  .cap-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    max-width: 300px;
+  }
+  .cap-input {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.06);
+    color: #fff;
+    outline: none;
+  }
+  .cap-input:focus {
+    border-color: #e84a27;
+  }
+  .cap-input::placeholder {
+    color: #555;
+  }
+  .cap-phone-row {
+    display: flex;
+    gap: 8px;
+  }
+  .cap-phone-prefix {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    padding: 12px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.03);
+    color: #888;
+    width: 60px;
+    text-align: center;
+    cursor: default;
+  }
+  .cap-phone-input {
+    flex: 1;
+  }
+  .cap-consent {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 11px;
+    color: #888;
+  }
+  .cap-consent input[type="checkbox"] {
+    margin-top: 2px;
+    accent-color: #e84a27;
+  }
+  .cap-error {
+    font-size: 11px;
+    color: #ff4444;
+    text-align: center;
+    min-height: 16px;
+  }
+  .cap-skip {
+    font-size: 11px;
+    color: #666;
+    text-decoration: underline;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .cap-honeypot {
+    position: absolute;
+    left: -9999px;
+    opacity: 0;
+    height: 0;
+    width: 0;
+  }
+
+  /* Report — Stage B */
+  #report {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #0a0a12;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    z-index: 150;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 40px;
+  }
+  #report.active { display: flex; }
+
+  .rpt-topbar {
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+  }
+  .rpt-logo {
+    font-family: 'Bangers', cursive;
+    font-size: 14px;
+    color: #888;
+    letter-spacing: 2px;
+  }
+  .rpt-share {
+    font-size: 18px;
+    cursor: pointer;
+    color: #888;
+    background: none;
+    border: none;
+    padding: 4px;
+  }
+
+  .rpt-section {
+    width: 100%;
+    max-width: 380px;
+    padding: 0 16px;
+    margin-bottom: 20px;
+  }
+
+  .rpt-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin: 10px 0 16px;
+  }
+  .rpt-hero img {
+    width: 80px; height: 80px;
+  }
+  .rpt-hero-count {
+    font-family: 'Bangers', cursive;
+    font-size: 24px;
+    color: #e84a27;
+    letter-spacing: 1px;
+  }
+  .rpt-hero-sub {
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  .rpt-archetype {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .rpt-archetype-emoji {
+    font-size: 40px;
+    line-height: 1;
+  }
+  .rpt-archetype-name {
+    font-family: 'Bangers', cursive;
+    font-size: 22px;
+    color: #fff;
+    letter-spacing: 1px;
+    margin-top: 6px;
+  }
+  .rpt-archetype-tagline {
+    font-size: 12px;
+    color: #aaa;
+    font-style: italic;
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+
+  .rpt-chart-title {
+    font-family: 'Bangers', cursive;
+    font-size: 14px;
+    color: #fff;
+    letter-spacing: 2px;
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  #spike-chart-canvas {
+    width: 100%;
+    max-width: 380px;
+    height: 200px;
+  }
+  .rpt-net-summary {
+    font-family: 'Bangers', cursive;
+    font-size: 20px;
+    text-align: center;
+    margin-top: 8px;
+  }
+  .rpt-net-caption {
+    font-size: 11px;
+    color: #777;
+    text-align: center;
+    margin-top: 2px;
+  }
+  .rpt-legend {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 8px;
+  }
+  .rpt-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: #aaa;
+  }
+  .rpt-legend-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+  }
+
+  /* Tile breakdown */
+  .rpt-breakdown-header {
+    font-family: 'Bangers', cursive;
+    font-size: 16px;
+    color: #fff;
+    letter-spacing: 2px;
+    text-align: center;
+    margin-top: 10px;
+    margin-bottom: 14px;
+  }
+  .rpt-subsection-header {
+    font-family: 'Bangers', cursive;
+    font-size: 15px;
+    letter-spacing: 2px;
+    margin: 14px 0 8px;
+  }
+  .rpt-subsection-subtitle {
+    font-size: 11px;
+    color: #777;
+    margin-top: -6px;
+    margin-bottom: 8px;
+  }
+  .rpt-tiles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .rpt-tile {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    min-width: 110px;
+    border-radius: 10px;
+  }
+  .rpt-tile-emoji {
+    font-size: 22px;
+    line-height: 1;
+  }
+  .rpt-tile-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .rpt-tile-label {
+    font-size: 11px;
+  }
+  .rpt-tile-count {
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .rpt-tile-repair {
+    background: rgba(68, 255, 136, 0.1);
+    border: 1px solid rgba(68, 255, 136, 0.4);
+  }
+  .rpt-tile-repair .rpt-tile-label { color: #aaa; }
+  .rpt-tile-repair .rpt-tile-count { color: #44ff88; }
+
+  .rpt-tile-damage {
+    background: rgba(255, 68, 68, 0.1);
+    border: 1px solid rgba(255, 68, 68, 0.4);
+  }
+  .rpt-tile-damage .rpt-tile-label { color: #aaa; }
+  .rpt-tile-damage .rpt-tile-count { color: #ff4444; }
+
+  .rpt-tile-missed {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px dashed rgba(255, 255, 255, 0.2);
+    opacity: 0.6;
+  }
+  .rpt-tile-missed .rpt-tile-emoji { filter: grayscale(0.7); }
+  .rpt-tile-missed .rpt-tile-label { color: #888; }
+  .rpt-tile-missed .rpt-tile-count { color: #888; }
+
+  .rpt-tile-rc {
+    box-shadow: 0 0 0 1px rgba(232, 74, 39, 0.7), 0 0 14px rgba(232, 74, 39, 0.35);
+  }
+  .rpt-tile-rc .rpt-tile-count { color: #44ff88; }
+  .rpt-tile-rc-img {
+    width: 26px;
+    height: 26px;
+  }
+
+  .rpt-empty {
+    font-size: 11px;
+    color: #777;
+    font-style: italic;
+    padding: 4px 0;
+  }
+
+  /* Max bar comparison */
+  .rpt-maxbar-section {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 1rem;
+    margin-top: 1rem;
+  }
+  .rpt-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+  }
+  .rpt-bar-label {
+    font-size: 11px;
+    color: #888;
+    width: 30px;
+    text-align: right;
+  }
+  .rpt-bar-track {
+    flex: 1;
+    height: 12px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+  }
+  .rpt-bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.5s ease;
+  }
+  .rpt-bar-count {
+    font-size: 12px;
+    color: #aaa;
+    width: 24px;
+  }
+  .rpt-bar-caption {
+    font-size: 11px;
+    color: #777;
+    text-align: center;
+    margin-top: 4px;
+  }
+
+  /* Science explainer */
+  .rpt-science {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 10px;
+  }
+  .rpt-science-title {
+    font-family: 'Bangers', cursive;
+    font-size: 13px;
+    color: #e84a27;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+  }
+  .rpt-science-text {
+    font-size: 12px;
+    color: #aaa;
+    line-height: 1.7;
+  }
+
+  /* Wallet */
+  .rpt-wallet {
+    background: rgba(232, 74, 39, 0.08);
+    border: 1px solid rgba(232, 74, 39, 0.3);
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    margin-top: 10px;
+  }
+  .rpt-wallet-title {
+    font-family: 'Bangers', cursive;
+    font-size: 14px;
+    letter-spacing: 3px;
+    color: #e84a27;
+  }
+  .rpt-wallet-big {
+    font-family: 'Bangers', cursive;
+    font-size: 48px;
+    color: #e84a27;
+    line-height: 1;
+    margin-top: 8px;
+  }
+  .rpt-wallet-collected {
+    font-size: 11px;
+    color: #aaa;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+  .rpt-wallet-breakdown {
+    font-size: 13px;
+    color: #bbb;
+    margin: 0.75rem 0;
+  }
+  .rpt-wallet-status {
+    font-size: 12px;
+    color: #888;
+    font-style: italic;
+  }
+  .rpt-wallet-redeem {
     font-family: 'Bangers', cursive;
     font-size: 14px;
     color: #fff;
     background: #e84a27;
     border: none;
-    padding: 12px 30px;
+    padding: 12px 28px;
     border-radius: 8px;
     cursor: pointer;
-    margin-top: 8px;
-    box-shadow: 0 4px 0 #8b1a0a;
+    margin-top: 12px;
     letter-spacing: 2px;
+    box-shadow: 0 4px 0 #8b1a0a;
   }
-  .restart-btn:active {
+  .rpt-wallet-redeem:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .rpt-wallet-redeem:active:not(:disabled) {
     transform: translateY(4px);
     box-shadow: 0 0 0 #8b1a0a;
   }
 
-  .go-link {
-    font-size: 11px;
-    color: #e84a27;
-    text-decoration: underline;
+  .rpt-play-again {
+    font-family: 'Bangers', cursive;
+    font-size: 16px;
+    color: #fff;
+    background: #e84a27;
+    border: none;
+    padding: 14px 36px;
+    border-radius: 10px;
     cursor: pointer;
-    margin-top: 4px;
+    margin: 20px 0;
+    box-shadow: 0 4px 0 #8b1a0a;
+    letter-spacing: 2px;
+  }
+  .rpt-play-again:active {
+    transform: translateY(4px);
+    box-shadow: 0 0 0 #8b1a0a;
   }
 
 </style>
@@ -336,35 +816,76 @@
   <div class="s-hint">← SWIPE to move · SWIPE UP to jump →</div>
 </div>
 
-<!-- Game Over -->
+<!-- Game Over — Stage A -->
 <div id="gameover">
   <div class="go-title">BURNOUT!</div>
-  <div class="go-reason" id="go-reason">Your cell ran out of energy. The daily grind won.</div>
-  <div class="go-stats">
-    <div class="go-stat">
-      <div class="go-stat-val" id="go-score">0</div>
-      <div class="go-stat-label">Distance</div>
+  <div class="go-reason" id="go-reason"></div>
+  <div class="go-rc-hero">
+    <img id="go-rc-cup" src="" alt="Red Coffee">
+    <div class="go-rc-count" id="go-rc-count">0 RED COFFEES</div>
+  </div>
+  <div class="go-archetype">
+    <div class="go-archetype-emoji" id="go-archetype-emoji"></div>
+    <div class="go-archetype-name" id="go-archetype-name"></div>
+    <div class="go-archetype-tagline" id="go-archetype-tagline"></div>
+  </div>
+  <button class="cta-btn" id="signin-btn">SIGN IN TO GET YOUR REPORT<br>& REDEEM RED COFFEES</button>
+  <button class="restart-btn" id="restart-btn">PLAY AGAIN</button>
+</div>
+
+<!-- Capture Modal -->
+<div id="capture-modal">
+  <div class="cap-title">GET YOUR CELL LENS REPORT</div>
+  <div class="cap-subtitle">See your full damage vs repair breakdown and redeem Red Coffees.</div>
+  <form class="cap-form" id="capture-form" autocomplete="off">
+    <input type="text" name="website" class="cap-honeypot" tabindex="-1" autocomplete="off">
+    <input type="email" class="cap-input" id="cap-email" placeholder="Email" required>
+    <div class="cap-phone-row">
+      <div class="cap-phone-prefix">+91</div>
+      <input type="tel" class="cap-input cap-phone-input" id="cap-phone" placeholder="98765 43210" inputmode="numeric" pattern="[6-9][0-9]{9}" maxlength="10" required>
     </div>
-    <div class="go-stat">
-      <div class="go-stat-val" id="go-coffees">0</div>
-      <div class="go-stat-label">Red Coffees</div>
-    </div>
-    <div class="go-stat">
-      <div class="go-stat-val" id="go-best">0</div>
-      <div class="go-stat-label">Best</div>
+    <label class="cap-consent">
+      <input type="checkbox" id="cap-consent" checked>
+      Send me Red Coffee updates
+    </label>
+    <div class="cap-error" id="cap-error"></div>
+    <button type="submit" class="cta-btn" style="width:100%;">GET MY REPORT</button>
+  </form>
+  <div class="cap-skip" id="cap-skip">Skip for now</div>
+</div>
+
+<!-- Report — Stage B -->
+<div id="report">
+  <div class="rpt-topbar">
+    <div class="rpt-logo">AKUNKA</div>
+    <button class="rpt-share" id="rpt-share-btn">&#x1F4E4;</button>
+  </div>
+  <div class="rpt-section rpt-hero" id="rpt-hero"></div>
+  <div class="rpt-section rpt-archetype" id="rpt-archetype"></div>
+  <div class="rpt-section">
+    <div class="rpt-chart-title">YOUR RUN, SECOND BY SECOND</div>
+    <canvas id="spike-chart-canvas"></canvas>
+    <div id="rpt-net-area"></div>
+    <div class="rpt-legend" id="rpt-legend"></div>
+  </div>
+  <div class="rpt-section" id="rpt-breakdown"></div>
+  <div class="rpt-section">
+    <div class="rpt-science">
+      <div class="rpt-science-title">WHY RED COFFEE SHOWED UP IN YOUR RUN</div>
+      <div class="rpt-science-text">
+        Beetroot's dietary nitrate is converted to nitric oxide in the body, which promotes vasodilation and supports oxygen delivery to cells.<br><br>
+        Caffeine blocks adenosine receptors, supporting alertness while causing mild vasoconstriction. These two mechanisms are complementary: one widens, the other narrows, and together the cardiovascular system finds equilibrium.<br><br>
+        Dietary nitrate is shown in meta-analyses to modestly reduce systolic blood pressure (~3 mmHg). — Lidder & Webb 2013, BJCP
+      </div>
     </div>
   </div>
-  <div class="go-insight-box">
-    <div class="go-insight-label">☕ RED COFFEE INSIGHT</div>
-    <div class="go-insight-text" id="go-insight">Beetroot nitrates widen blood vessels while caffeine sharpens focus. Together, they create balanced energy — no jitters, no crash.</div>
-  </div>
-  <button class="restart-btn" id="restart-btn">RUN AGAIN</button>
-  <div class="go-link" id="go-link">What is Red Coffee? → Learn the science</div>
+  <div class="rpt-section" id="rpt-wallet"></div>
+  <button class="rpt-play-again" id="rpt-play-again">PLAY AGAIN</button>
 </div>
 
 <script>
 // ============================================================
-// RED COFFEE RUN — Daily Life Endless Runner
+// RED COFFEE RUN — Daily Life Endless Runner + Cell Lens Report
 // ============================================================
 
 const canvas = document.getElementById('game');
@@ -443,6 +964,131 @@ const DEATH_REASONS = [
   "The grumpy boss was the last straw.",
 ];
 
+// Label lists for Cell Lens
+const GOOD_LABELS = ['Water','Salad Bowl','Quick Walk','Deep Breath','Veggies','Good Chat','Power Nap'];
+const BAD_LABELS = ['Grumpy Boss','Notification Storm','Junk Temptation','Sleep Debt',
+                    'Traffic Jam','Sugar Crash','One More Drink','Endless Meeting','Anxiety Spiral'];
+const SUPER_LABELS = ['Burnout Wave','Energy Crash','Chaos Day'];
+const ALL_LABELS = [...GOOD_LABELS, ...BAD_LABELS, ...SUPER_LABELS, 'RED COFFEE'];
+
+// Emoji lookup
+const EMOJI_MAP = {};
+[...BAD_ITEMS, ...SUPER_ITEMS, ...GOOD_ITEMS].forEach(i => EMOJI_MAP[i.label] = i.emoji);
+EMOJI_MAP['RED COFFEE'] = '☕';
+
+// ============================================================
+// RC CUP VISUAL — offscreen canvas with golden glow
+// ============================================================
+
+let rcCupDataURL = null;
+
+function renderRCCupImage() {
+  const size = 96;
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  const x = c.getContext('2d');
+  const cx = size / 2;
+  const cy = size / 2;
+  const s = size / 48; // scale factor
+
+  // Golden/amber radial glow aura BEHIND the cup
+  const glow = x.createRadialGradient(cx, cy, 8, cx, cy, 44);
+  glow.addColorStop(0, 'rgba(255, 200, 50, 0.45)');
+  glow.addColorStop(0.5, 'rgba(232, 74, 39, 0.2)');
+  glow.addColorStop(1, 'rgba(232, 74, 39, 0)');
+  x.fillStyle = glow;
+  x.fillRect(0, 0, size, size);
+
+  // Steam wisps
+  x.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+  x.lineWidth = 1.2;
+  x.lineCap = 'round';
+  for (let si = 0; si < 3; si++) {
+    const sx = cx - 5*s + si * 5*s;
+    x.beginPath();
+    x.moveTo(sx, cy - 14*s);
+    x.quadraticCurveTo(sx + (si-1)*2*s, cy - 20*s, sx + (si-1)*s, cy - 26*s);
+    x.stroke();
+  }
+
+  // Cup body — white, slightly tapered
+  x.beginPath();
+  x.moveTo(cx - 10*s, cy - 10*s);
+  x.lineTo(cx - 8*s, cy + 10*s);
+  x.quadraticCurveTo(cx, cy + 13*s, cx + 8*s, cy + 10*s);
+  x.lineTo(cx + 10*s, cy - 10*s);
+  x.closePath();
+  x.fillStyle = '#ffffff';
+  x.fill();
+  x.strokeStyle = '#cccccc';
+  x.lineWidth = 1;
+  x.stroke();
+
+  // Red liquid fill inside
+  x.save();
+  x.beginPath();
+  x.moveTo(cx - 10*s, cy - 10*s);
+  x.lineTo(cx - 8*s, cy + 10*s);
+  x.quadraticCurveTo(cx, cy + 13*s, cx + 8*s, cy + 10*s);
+  x.lineTo(cx + 10*s, cy - 10*s);
+  x.closePath();
+  x.clip();
+
+  const liquidTop = cy - 4*s;
+  const liquidGrad = x.createLinearGradient(cx, liquidTop, cx, cy + 12*s);
+  liquidGrad.addColorStop(0, '#e84a27');
+  liquidGrad.addColorStop(0.4, '#cc2211');
+  liquidGrad.addColorStop(1, '#991500');
+  x.fillStyle = liquidGrad;
+  x.fillRect(cx - 12*s, liquidTop, 24*s, cy + 14*s - liquidTop);
+
+  // Liquid surface highlight
+  x.beginPath();
+  x.ellipse(cx, liquidTop, 9*s, 2*s, 0, 0, Math.PI * 2);
+  x.fillStyle = 'rgba(255, 120, 80, 0.5)';
+  x.fill();
+  x.restore();
+
+  // Cup handle
+  x.beginPath();
+  x.arc(cx + 11*s, cy, 5*s, -Math.PI * 0.4, Math.PI * 0.4);
+  x.strokeStyle = '#ffffff';
+  x.lineWidth = 2.5;
+  x.stroke();
+  x.strokeStyle = '#cccccc';
+  x.lineWidth = 1;
+  x.stroke();
+
+  // Cup rim highlight
+  x.beginPath();
+  x.moveTo(cx - 10*s, cy - 10*s);
+  x.lineTo(cx + 10*s, cy - 10*s);
+  x.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+  x.lineWidth = 1.5;
+  x.stroke();
+
+  // "RED" text on cup
+  x.font = "bold " + Math.floor(6*s) + "px 'Bangers', cursive";
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  x.fillStyle = '#e84a27';
+  x.fillText('RED', cx - 1*s, cy + 2*s);
+
+  rcCupDataURL = c.toDataURL();
+  return rcCupDataURL;
+}
+
+// ============================================================
+// localStorage migration: coins → rc
+// ============================================================
+(function migrateLocalStorage() {
+  const oldKey = localStorage.getItem('rcrun-coins-balance');
+  if (oldKey && !localStorage.getItem('rcrun-rc-balance')) {
+    localStorage.setItem('rcrun-rc-balance', oldKey);
+    localStorage.removeItem('rcrun-coins-balance');
+  }
+})();
+
 // ============================================================
 // GAME STATE
 // ============================================================
@@ -451,6 +1097,12 @@ const LANES = [-1, 0, 1];
 const LANE_WIDTH = 72;
 
 let G = {};
+
+function initSessionGrabs() {
+  const obj = {};
+  ALL_LABELS.forEach(l => obj[l] = 0);
+  return obj;
+}
 
 function resetState() {
   G = {
@@ -466,12 +1118,12 @@ function resetState() {
     jumpY: 0,
     isJumping: false,
     jumpVel: 0,
-    items: [],       // all items on screen
+    items: [],
     particles: [],
     bgDots: [],
     frameCount: 0,
     bestScore: parseInt(localStorage.getItem('rcrun-best') || '0'),
-    equilibriumTimer: 0, // glowing green state after Red Coffee
+    equilibriumTimer: 0,
     flashText: '',
     flashTimer: 0,
     flashColor: '#fff',
@@ -479,6 +1131,24 @@ function resetState() {
     comboGood: 0,
     shakeTimer: 0,
     shakeIntensity: 0,
+
+    // Cell Lens session instrumentation
+    session: {
+      session_id: 'rcr_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now(),
+      started_at: Date.now(),
+      ended_at: null,
+      src: new URLSearchParams(location.search).get('src') || 'direct',
+      grabs: initSessionGrabs(),
+      misses: initSessionGrabs(),
+      timeline: [],
+      total_spawned: 0,
+      final_energy: 0,
+      duration_ms: 0,
+      end_reason: 'burnout',
+      damage: 0,
+      repair: 0,
+      net: 0,
+    },
   };
 
   // Pre-generate background elements
@@ -502,7 +1172,6 @@ function laneToX(lane) { return getCenterX() + lane * LANE_WIDTH; }
 // ============================================================
 
 function drawBackground() {
-  // Gradient — dark urban feel
   const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
   bg.addColorStop(0, '#0d0a12');
   bg.addColorStop(0.4, '#120d18');
@@ -510,7 +1179,6 @@ function drawBackground() {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Scrolling background dots (city lights feel)
   for (const d of G.bgDots) {
     d.y += G.speed * d.speed;
     if (d.y > canvas.height + 10) { d.y = -10; d.x = Math.random() * canvas.width; }
@@ -522,7 +1190,6 @@ function drawBackground() {
   }
   ctx.globalAlpha = 1;
 
-  // Lane markers
   ctx.strokeStyle = 'rgba(255,255,255,0.03)';
   ctx.lineWidth = 1;
   ctx.setLineDash([8, 24]);
@@ -535,7 +1202,6 @@ function drawBackground() {
   }
   ctx.setLineDash([]);
 
-  // Road edges — subtle glow
   const edgeL = getCenterX() - LANE_WIDTH * 2;
   const edgeR = getCenterX() + LANE_WIDTH * 2;
   ctx.strokeStyle = 'rgba(232, 74, 39, 0.06)';
@@ -549,7 +1215,6 @@ function drawCell(x, y) {
   const drawY = y + bounce - G.jumpY;
   const isEq = G.equilibriumTimer > 0;
 
-  // Shake offset
   let sx = 0, sy = 0;
   if (G.shakeTimer > 0) {
     sx = (Math.random() - 0.5) * G.shakeIntensity;
@@ -559,7 +1224,6 @@ function drawCell(x, y) {
   ctx.save();
   ctx.translate(sx, sy);
 
-  // Outer glow
   ctx.beginPath();
   ctx.arc(x, drawY, 34, 0, Math.PI * 2);
   if (isEq) {
@@ -574,7 +1238,6 @@ function drawCell(x, y) {
   ctx.fill();
   ctx.shadowBlur = 0;
 
-  // Cell body
   ctx.beginPath();
   ctx.arc(x, drawY, 26, 0, Math.PI * 2);
   const bodyGrad = ctx.createRadialGradient(x - 5, drawY - 5, 4, x, drawY, 26);
@@ -594,7 +1257,6 @@ function drawCell(x, y) {
   ctx.fillStyle = bodyGrad;
   ctx.fill();
 
-  // Nucleus
   ctx.beginPath();
   ctx.arc(x + 2, drawY + 3, 9, 0, Math.PI * 2);
   ctx.fillStyle = isEq ? '#ccffdd' : '#66cc99';
@@ -602,7 +1264,6 @@ function drawCell(x, y) {
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  // Eyes
   const eyeY = drawY - 6;
   ctx.fillStyle = '#fff';
   ctx.beginPath();
@@ -610,7 +1271,6 @@ function drawCell(x, y) {
   ctx.ellipse(x + 7, eyeY, 5, 5.5, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Pupils — look toward target lane
   const lookX = (G.targetLane - G.lane) * 1.5;
   ctx.fillStyle = '#111';
   ctx.beginPath();
@@ -618,23 +1278,18 @@ function drawCell(x, y) {
   ctx.arc(x + 8 + lookX, eyeY + 0.5, 2.5, 0, Math.PI * 2);
   ctx.fill();
 
-  // Mouth — changes with state
   ctx.strokeStyle = '#115533';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   if (isEq) {
-    // Big grin
     ctx.arc(x, drawY + 1, 9, 0.1, Math.PI - 0.1);
   } else if (G.energy < 30) {
-    // Worried
     ctx.arc(x, drawY + 8, 6, Math.PI + 0.3, -0.3);
   } else {
-    // Normal smile
     ctx.arc(x, drawY + 1, 6, 0.2, Math.PI - 0.2);
   }
   ctx.stroke();
 
-  // Equilibrium sparkles
   if (isEq) {
     for (let i = 0; i < 3; i++) {
       const angle = G.frameCount * 0.08 + i * (Math.PI * 2 / 3);
@@ -655,9 +1310,7 @@ function drawItem(item) {
   ctx.save();
   const bob = Math.sin(G.frameCount * 0.08 + item.y * 0.01) * 3;
 
-  // Background indicator — clear visual language
   if (item.kind === 'super') {
-    // Super damage — intense pulsing red/magenta aura, bigger
     const pulse = 0.4 + Math.sin(G.frameCount * 0.2) * 0.2;
     ctx.beginPath();
     ctx.arc(item.x, item.y + bob, 32, 0, Math.PI * 2);
@@ -666,7 +1319,6 @@ function drawItem(item) {
     ctx.shadowBlur = 20;
     ctx.fill();
     ctx.shadowBlur = 0;
-    // Spinning jagged ring
     ctx.strokeStyle = `rgba(255, 40, 80, ${0.5 + Math.sin(G.frameCount * 0.15) * 0.3})`;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
@@ -681,12 +1333,10 @@ function drawItem(item) {
     ctx.closePath();
     ctx.stroke();
   } else if (item.kind === 'bad') {
-    // Red jagged glow
     ctx.beginPath();
     ctx.arc(item.x, item.y + bob, 24, 0, Math.PI * 2);
     ctx.fillStyle = `rgba(255, 50, 50, ${0.12 + Math.sin(G.frameCount * 0.1) * 0.05})`;
     ctx.fill();
-    // Jagged ring
     ctx.strokeStyle = 'rgba(255, 80, 80, 0.35)';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -700,7 +1350,6 @@ function drawItem(item) {
     ctx.closePath();
     ctx.stroke();
   } else if (item.kind === 'coffee') {
-    // Golden pulsing aura
     const pulse = 0.3 + Math.sin(G.frameCount * 0.12) * 0.15;
     ctx.beginPath();
     ctx.arc(item.x, item.y + bob, 30, 0, Math.PI * 2);
@@ -710,19 +1359,16 @@ function drawItem(item) {
     ctx.arc(item.x, item.y + bob, 22, 0, Math.PI * 2);
     ctx.fillStyle = `rgba(255, 200, 50, ${pulse * 0.4})`;
     ctx.fill();
-    // Smooth golden ring
     ctx.strokeStyle = `rgba(255, 180, 40, ${0.5 + Math.sin(G.frameCount * 0.15) * 0.3})`;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.arc(item.x, item.y + bob, 26, 0, Math.PI * 2);
     ctx.stroke();
   } else {
-    // Green smooth glow
     ctx.beginPath();
     ctx.arc(item.x, item.y + bob, 22, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(68, 255, 136, 0.1)';
     ctx.fill();
-    // Smooth ring
     ctx.strokeStyle = 'rgba(68, 255, 136, 0.3)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -730,14 +1376,11 @@ function drawItem(item) {
     ctx.stroke();
   }
 
-  // Draw item content
   if (item.kind === 'coffee') {
-    // Custom drawn Red Coffee cup — white cup, red liquid
     const cx = item.x;
     const cy = item.y + bob;
-    const s = 1.1; // scale
+    const s = 1.1;
 
-    // Steam wisps
     const steamAlpha = 0.2 + Math.sin(G.frameCount * 0.08) * 0.1;
     ctx.strokeStyle = `rgba(255, 255, 255, ${steamAlpha})`;
     ctx.lineWidth = 1.2;
@@ -751,12 +1394,11 @@ function drawItem(item) {
       ctx.stroke();
     }
 
-    // Cup body — white, slightly tapered
     ctx.beginPath();
-    ctx.moveTo(cx - 10*s, cy - 10*s);  // top left
-    ctx.lineTo(cx - 8*s, cy + 10*s);   // bottom left
-    ctx.quadraticCurveTo(cx, cy + 13*s, cx + 8*s, cy + 10*s); // rounded bottom
-    ctx.lineTo(cx + 10*s, cy - 10*s);  // top right
+    ctx.moveTo(cx - 10*s, cy - 10*s);
+    ctx.lineTo(cx - 8*s, cy + 10*s);
+    ctx.quadraticCurveTo(cx, cy + 13*s, cx + 8*s, cy + 10*s);
+    ctx.lineTo(cx + 10*s, cy - 10*s);
     ctx.closePath();
     ctx.fillStyle = '#ffffff';
     ctx.fill();
@@ -764,7 +1406,6 @@ function drawItem(item) {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Red liquid fill inside — fills ~75% of cup
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(cx - 10*s, cy - 10*s);
@@ -774,7 +1415,6 @@ function drawItem(item) {
     ctx.closePath();
     ctx.clip();
 
-    // Red liquid — gradient from dark red to bright red
     const liquidTop = cy - 4*s;
     const liquidGrad = ctx.createLinearGradient(cx, liquidTop, cx, cy + 12*s);
     liquidGrad.addColorStop(0, '#e84a27');
@@ -783,15 +1423,12 @@ function drawItem(item) {
     ctx.fillStyle = liquidGrad;
     ctx.fillRect(cx - 12*s, liquidTop, 24*s, cy + 14*s - liquidTop);
 
-    // Liquid surface highlight
     ctx.beginPath();
     ctx.ellipse(cx, liquidTop, 9*s, 2*s, 0, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255, 120, 80, 0.5)';
     ctx.fill();
-
     ctx.restore();
 
-    // Cup handle — right side
     ctx.beginPath();
     ctx.arc(cx + 11*s, cy, 5*s, -Math.PI * 0.4, Math.PI * 0.4);
     ctx.strokeStyle = '#ffffff';
@@ -801,7 +1438,6 @@ function drawItem(item) {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Cup rim highlight
     ctx.beginPath();
     ctx.moveTo(cx - 10*s, cy - 10*s);
     ctx.lineTo(cx + 10*s, cy - 10*s);
@@ -809,26 +1445,22 @@ function drawItem(item) {
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // "RED" text on cup
     ctx.font = "bold " + Math.floor(6*s) + "px 'Bangers', cursive";
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#e84a27';
     ctx.fillText('RED', cx - 1*s, cy + 2*s);
 
-    // Label below
     ctx.font = "bold 9px 'Bangers', cursive";
     ctx.fillStyle = '#e84a27';
     ctx.textAlign = 'center';
     ctx.fillText('RED COFFEE', cx, cy + 24*s);
   } else if (item.kind === 'super') {
-    // Super items — larger emoji
     ctx.font = '34px serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(item.data.emoji, item.x, item.y + bob);
   } else {
-    // Emoji for non-coffee items
     ctx.font = '26px serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -843,7 +1475,7 @@ function drawParticles() {
     const p = G.particles[i];
     p.x += p.vx;
     p.y += p.vy;
-    p.vy += 0.1; // gravity
+    p.vy += 0.1;
     p.life -= 0.025;
     if (p.life <= 0) { G.particles.splice(i, 1); continue; }
     ctx.save();
@@ -884,7 +1516,6 @@ function drawFlash() {
     ctx.textAlign = 'center';
     ctx.fillStyle = G.flashColor;
     ctx.globalAlpha = alpha;
-    // Shadow for readability
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
     ctx.shadowBlur = 8;
     ctx.fillText(G.flashText, getCenterX(), canvas.height * 0.48 - (1 - alpha) * 20);
@@ -901,10 +1532,7 @@ function spawnItem() {
   const lane = LANES[Math.floor(Math.random() * 3)];
   const roll = Math.random();
 
-  // Red Coffee — rare, each one matters
   const coffeeChance = G.frameCount - G.lastCoffeeSpawn > 400 ? 0.08 : 0.015;
-
-  // Super damage — unlocks after score 200, 8% chance
   const superChance = G.score > 200 ? 0.08 : 0;
 
   let item;
@@ -912,20 +1540,18 @@ function spawnItem() {
     item = { x: laneToX(lane), y: -40, lane, kind: 'coffee', data: RED_COFFEE, w: 30, h: 30, speedMult: 1 };
     G.lastCoffeeSpawn = G.frameCount;
   } else if (roll < coffeeChance + superChance) {
-    // Super damage item — falls 1.6x faster, bigger
     const type = SUPER_ITEMS[Math.floor(Math.random() * SUPER_ITEMS.length)];
     item = { x: laneToX(lane), y: -40, lane, kind: 'super', data: type, w: 34, h: 34, speedMult: 1.6 };
   } else if (roll < 0.55) {
-    // Bad item
     const type = BAD_ITEMS[Math.floor(Math.random() * BAD_ITEMS.length)];
     item = { x: laneToX(lane), y: -40, lane, kind: 'bad', data: type, w: 28, h: 28, speedMult: 1 };
   } else {
-    // Good item
     const type = GOOD_ITEMS[Math.floor(Math.random() * GOOD_ITEMS.length)];
     item = { x: laneToX(lane), y: -40, lane, kind: 'good', data: type, w: 26, h: 26, speedMult: 1 };
   }
 
   G.items.push(item);
+  G.session.total_spawned++;
 }
 
 function flash(text, color) {
@@ -942,10 +1568,6 @@ function shake(intensity, duration) {
 function checkCollision(cellX, cellY, item) {
   const dist = Math.sqrt((cellX - item.x) ** 2 + ((cellY - G.jumpY) - item.y) ** 2);
 
-  // Base radius 34. Red Coffee gets a bigger collision radius (38) because
-  // it's the hero pickup and players should not feel robbed when reaching for it.
-  // During active lane transitions (cellX far from target lane), extend radius
-  // by 6px to catch near-misses on fast-moving items at high speeds.
   const targetX = laneToX(G.targetLane);
   const inTransition = Math.abs(cellX - targetX) > 8;
 
@@ -961,10 +1583,9 @@ function update() {
   G.frameCount++;
   G.score += Math.floor(G.speed * 0.4);
 
-  // Speed step function — discrete jumps, capped at 5x initial
   const INITIAL_SPEED = 3.8;
-  const MAX_SPEED = INITIAL_SPEED * 5; // 19
-  const STEP_INTERVAL = 600; // ~10 sec at 60fps
+  const MAX_SPEED = INITIAL_SPEED * 5;
+  const STEP_INTERVAL = 600;
   const SPEED_STEP = 1.5;
   const targetSpeed = Math.min(
     INITIAL_SPEED + Math.floor(G.frameCount / STEP_INTERVAL) * SPEED_STEP,
@@ -976,24 +1597,18 @@ function update() {
     shake(4, 6);
   }
 
-  // Passive energy drain — the daily grind
   G.energy -= 0.02 * (1 + G.speed * 0.1);
 
-  // Equilibrium timer countdown
   if (G.equilibriumTimer > 0) {
     G.equilibriumTimer--;
-    // Slower energy drain during equilibrium
     G.energy += 0.015;
   }
 
-  // Shake countdown
   if (G.shakeTimer > 0) G.shakeTimer--;
 
-  // Lane interpolation — snappier response (was 0.2, now 0.35)
   const targetX = laneToX(G.targetLane);
   G.cellX += (targetX - G.cellX) * 0.35;
 
-  // Jump
   if (G.isJumping) {
     G.jumpY += G.jumpVel;
     G.jumpVel -= 1.3;
@@ -1004,28 +1619,41 @@ function update() {
     }
   }
 
-  // Spawn items
   const spawnRate = Math.max(25, 60 - G.speed * 2.5);
   if (G.frameCount % Math.floor(spawnRate) === 0) spawnItem();
 
-  // Harder at higher speeds — more items
   if (G.speed > 6 && G.frameCount % Math.floor(spawnRate * 0.6) === 0) {
     spawnItem();
   }
 
-  // Update items
   const cellY = getCellY();
   for (let i = G.items.length - 1; i >= 0; i--) {
     const item = G.items[i];
     item.y += G.speed * (item.speedMult || 1);
 
     if (item.y > canvas.height + 50) {
+      // Record miss
+      G.session.misses[item.data.label]++;
+      G.session.timeline.push({
+        t: Date.now() - G.session.started_at,
+        type: 'miss',
+        label: item.data.label,
+        kind: item.kind
+      });
       G.items.splice(i, 1);
       continue;
     }
 
-    // Collision
     if (!checkCollision(G.cellX, cellY, item)) continue;
+
+    // Record grab
+    G.session.grabs[item.data.label]++;
+    G.session.timeline.push({
+      t: Date.now() - G.session.started_at,
+      type: 'grab',
+      label: item.data.label,
+      kind: item.kind
+    });
 
     if (item.kind === 'super') {
       if (G.equilibriumTimer > 0) {
@@ -1043,7 +1671,6 @@ function update() {
       }
     } else if (item.kind === 'bad') {
       if (G.equilibriumTimer > 0) {
-        // Shield from equilibrium — reduced damage
         G.energy -= item.data.damage * 0.3;
         flash(item.data.desc + ' (shielded!)', '#88ffcc');
         spawnParticles(item.x, item.y, '#44ff88', 6, 'circle');
@@ -1060,7 +1687,7 @@ function update() {
       G.energy = Math.min(G.maxEnergy, G.energy + item.data.heal);
       G.coffees++;
       G.comboGood++;
-      G.equilibriumTimer = 300; // 5 seconds of equilibrium
+      G.equilibriumTimer = 300;
       flash('⚡ EQUILIBRIUM! ⚡', '#e84a27');
       spawnParticles(item.x, item.y, '#e84a27', 15, 'star');
       spawnParticles(item.x, item.y, '#ffcc44', 10, 'circle');
@@ -1076,15 +1703,12 @@ function update() {
     G.items.splice(i, 1);
   }
 
-  // Clamp energy
   G.energy = Math.max(0, Math.min(G.maxEnergy, G.energy));
 
-  // Update HUD
   document.getElementById('energy-bar').style.width = G.energy + '%';
   document.getElementById('hud-score').textContent = G.score;
   document.getElementById('hud-coffees').textContent = '☕ ' + G.coffees;
 
-  // Energy bar color
   const ebar = document.getElementById('energy-bar');
   if (G.equilibriumTimer > 0) {
     ebar.style.background = 'linear-gradient(90deg, #44ff88, #88ffcc, #44ff88)';
@@ -1100,7 +1724,6 @@ function update() {
     document.getElementById('energy-label').textContent = 'HEALTH';
   }
 
-  // Death
   if (G.energy <= 0) {
     gameOver();
   }
@@ -1109,7 +1732,6 @@ function update() {
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Apply screen shake
   ctx.save();
   if (G.shakeTimer > 0) {
     ctx.translate(
@@ -1119,19 +1741,11 @@ function render() {
   }
 
   drawBackground();
-
-  // Items
   G.items.forEach(drawItem);
-
-  // Cell
   drawCell(G.cellX, getCellY());
-
-  // Particles
   drawParticles();
 
   ctx.restore();
-
-  // Flash (outside shake)
   drawFlash();
 }
 
@@ -1162,7 +1776,6 @@ function unlockAudio() {
   if (audioCtx.state === 'suspended') {
     audioCtx.resume();
   }
-  // Play a near-silent sound in user gesture stack — iOS unlock
   const osc = audioCtx.createOscillator();
   const g = audioCtx.createGain();
   g.gain.value = 0.001;
@@ -1182,32 +1795,29 @@ function playChiptune() {
   masterGain.connect(audioCtx.destination);
   musicNodes.push(masterGain);
 
-  // Melody — pentatonic scale, upbeat retro feel
   const melody = [
-    392, 440, 523, 587, 659, 523, 440, 392, // G4 A4 C5 D5 E5 C5 A4 G4
-    440, 523, 587, 659, 784, 659, 587, 523, // A4 C5 D5 E5 G5 E5 D5 C5
-    523, 587, 659, 784, 659, 587, 523, 440, // C5 D5 E5 G5 E5 D5 C5 A4
-    392, 440, 523, 440, 392, 330, 392, 440, // G4 A4 C5 A4 G4 E4 G4 A4
+    392, 440, 523, 587, 659, 523, 440, 392,
+    440, 523, 587, 659, 784, 659, 587, 523,
+    523, 587, 659, 784, 659, 587, 523, 440,
+    392, 440, 523, 440, 392, 330, 392, 440,
   ];
 
-  // Bass line
   const bass = [
-    196, 196, 220, 220, 262, 262, 220, 220, // G3 G3 A3 A3 C4 C4 A3 A3
-    196, 196, 262, 262, 330, 330, 262, 262, // repeat pattern
+    196, 196, 220, 220, 262, 262, 220, 220,
+    196, 196, 262, 262, 330, 330, 262, 262,
     262, 262, 330, 330, 392, 392, 330, 330,
     196, 196, 220, 220, 196, 196, 165, 165,
   ];
 
   let step = 0;
   const bpm = 140;
-  const stepTime = 60 / bpm / 2; // 8th notes
+  const stepTime = 60 / bpm / 2;
 
   function playStep() {
     if (!musicPlaying || !audioCtx) return;
-    const now = audioCtx.currentTime + 0.01; // offset for Safari
+    const now = audioCtx.currentTime + 0.01;
     const idx = step % melody.length;
 
-    // Melody voice — square wave
     const melOsc = audioCtx.createOscillator();
     const melGain = audioCtx.createGain();
     melOsc.type = 'square';
@@ -1219,7 +1829,6 @@ function playChiptune() {
     melOsc.start(now);
     melOsc.stop(now + stepTime * 0.9);
 
-    // Bass voice — triangle wave, every other step
     if (step % 2 === 0) {
       const bassOsc = audioCtx.createOscillator();
       const bassGain = audioCtx.createGain();
@@ -1233,7 +1842,6 @@ function playChiptune() {
       bassOsc.stop(now + stepTime * 1.8);
     }
 
-    // Hihat noise — every 4th step
     if (step % 4 === 0) {
       const bufSize = audioCtx.sampleRate * 0.02;
       const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
@@ -1253,7 +1861,7 @@ function playChiptune() {
   }
 
   musicInterval = setInterval(playStep, stepTime * 1000);
-  playStep(); // start immediately
+  playStep();
 }
 
 function stopChiptune() {
@@ -1262,15 +1870,6 @@ function stopChiptune() {
   musicNodes.forEach(n => { try { n.disconnect(); } catch(e) {} });
   musicNodes = [];
 }
-
-// SFX — short one-shot sounds, all route through sfxGain
-//
-// MOBILE SAFARI RULES:
-// 1. Never use setValueAtTime(x, now) �� "now" is already past on the
-//    audio thread. Set gain.value directly for immediate values.
-// 2. For future-scheduled notes, offset by at least 0.01s.
-// 3. exponentialRampToValueAtTime needs a prior anchor — use
-//    setValueAtTime at a future time BEFORE the ramp target time.
 
 function sfxHit() {
   if (!soundEnabled || !audioCtx || !sfxGain) return;
@@ -1368,7 +1967,6 @@ function sfxGameOver() {
     osc.connect(g); g.connect(sfxGain);
     osc.start(t); osc.stop(t + n.dur + 0.05);
   });
-  // Final low rumble
   const bass = audioCtx.createOscillator();
   const bg = audioCtx.createGain();
   bass.type = 'triangle';
@@ -1389,20 +1987,518 @@ function toggleSound() {
 }
 
 // ============================================================
+// CELL LENS — Scoring, Archetype, Report
+// ============================================================
+
+function getHealValue(label) {
+  if (label === 'RED COFFEE') return RED_COFFEE.heal;
+  const item = GOOD_ITEMS.find(i => i.label === label);
+  return item ? item.heal : 0;
+}
+
+function getDamageValue(label) {
+  let item = BAD_ITEMS.find(i => i.label === label);
+  if (item) return item.damage;
+  item = SUPER_ITEMS.find(i => i.label === label);
+  return item ? item.damage : 0;
+}
+
+function computeScoring() {
+  let totalDamage = 0;
+  let totalRepair = 0;
+
+  // Damage: BAD + SUPER grabs
+  [...BAD_LABELS, ...SUPER_LABELS].forEach(label => {
+    totalDamage += (G.session.grabs[label] || 0) * getDamageValue(label);
+  });
+
+  // Repair: GOOD grabs + RED COFFEE at 1.5x
+  GOOD_LABELS.forEach(label => {
+    totalRepair += (G.session.grabs[label] || 0) * getHealValue(label);
+  });
+  totalRepair += (G.session.grabs['RED COFFEE'] || 0) * RED_COFFEE.heal * 1.5;
+
+  G.session.damage = totalDamage;
+  G.session.repair = totalRepair;
+  G.session.net = totalRepair - totalDamage;
+}
+
+function classifyArchetype(s) {
+  const rc = s.grabs['RED COFFEE'];
+  const repair = s.repair;
+  const net = s.net;
+
+  const goodGrabs = GOOD_LABELS.reduce((a,k) => a + s.grabs[k], 0);
+  const badGrabs = BAD_LABELS.reduce((a,k) => a + s.grabs[k], 0);
+  const superGrabs = SUPER_LABELS.reduce((a,k) => a + s.grabs[k], 0);
+  const badTotal = badGrabs + superGrabs;
+
+  if (rc >= 12 && net > 20) {
+    return { slug: 'equilibrium_legend', emoji: '🏆', name: 'The Equilibrium Legend', tagline: 'Red Coffee in one hand, chaos handled in the other. Iconic.' };
+  }
+  if (rc >= 8 && goodGrabs >= 6 && net > 15) {
+    return { slug: 'cell_ruler', emoji: '👑', name: 'Cell Ruler', tagline: 'Maxed every lever. Does this person sleep? Yes, perfectly.' };
+  }
+  if (rc >= 10 && goodGrabs < 4) {
+    return { slug: 'red_coffee_hoarder', emoji: '☕', name: 'The Red Coffee Hoarder', tagline: 'Saw Red Coffee. Grabbed Red Coffee. Repeat.' };
+  }
+  if (goodGrabs >= 8 && rc < 5 && net > 0) {
+    return { slug: 'wellness_warrior', emoji: '🥦', name: 'Wellness Warrior', tagline: 'Water. Walk. Salad. Nap. Influencer energy.' };
+  }
+  const zenSignal = s.grabs['Deep Breath'] + s.grabs['Power Nap'] + s.grabs['Good Chat'];
+  if (zenSignal >= 5 && net > 0) {
+    return { slug: 'zen_cell', emoji: '🧘', name: 'Zen Cell', tagline: "Breathed through it. Broccoli'd through it. Won." };
+  }
+  const gremlinSignal = s.grabs['Junk Temptation'] + s.grabs['Sugar Crash'] + s.grabs['One More Drink'];
+  if (gremlinSignal >= 4) {
+    return { slug: 'sugar_gremlin', emoji: '🍩', name: 'Sugar Gremlin', tagline: 'Saw pizza. Saw coffee. Chose pizza. Predictable.' };
+  }
+  if (badTotal >= 8 && s.final_energy > 0) {
+    return { slug: 'chaos_survivor', emoji: '🌪️', name: 'Chaos Survivor', tagline: 'Monday meeting Monday meeting Monday meeting. Still alive.' };
+  }
+  if (s.end_reason === 'burnout' && repair < 30) {
+    return { slug: 'burnout_classic', emoji: '🔥', name: 'Classic Burnout', tagline: 'Ran hot. Ran out. A relatable tragedy.' };
+  }
+  return { slug: 'balanced', emoji: '⚖️', name: 'Balanced Cell', tagline: 'Took some hits, caught some gains. A working human.' };
+}
+
+// ============================================================
+// CAPTURE FORM
+// ============================================================
+
+function submitCapture(data) {
+  console.log('[STUB] Capture payload:', {
+    email: data.email,
+    phone: data.phone,
+    consent: data.consent,
+    session: G.session,
+    archetype: classifyArchetype(G.session).slug,
+    rc_earned: G.session.grabs['RED COFFEE']
+  });
+
+  localStorage.setItem('rcrun-email', data.email);
+
+  const thisRun = G.session.grabs['RED COFFEE'] || 0;
+  const prev = parseInt(localStorage.getItem('rcrun-rc-balance') || '0');
+  localStorage.setItem('rcrun-rc-balance', (prev + thisRun).toString());
+
+  document.getElementById('capture-modal').classList.remove('active');
+  showFullReport();
+}
+
+document.getElementById('capture-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const errEl = document.getElementById('cap-error');
+  errEl.textContent = '';
+
+  // Honeypot
+  const hp = this.querySelector('[name="website"]');
+  if (hp && hp.value) { return; }
+
+  const email = document.getElementById('cap-email').value.trim();
+  const phone = document.getElementById('cap-phone').value.trim();
+  const consent = document.getElementById('cap-consent').checked;
+
+  // Validate email
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errEl.textContent = 'Please enter a valid email address.';
+    return;
+  }
+
+  // Validate phone
+  if (!/^[6-9][0-9]{9}$/.test(phone)) {
+    errEl.textContent = 'Please enter a valid 10-digit Indian mobile number.';
+    return;
+  }
+
+  submitCapture({ email, phone: '+91' + phone, consent });
+});
+
+document.getElementById('cap-skip').addEventListener('click', function() {
+  // Store RC balance even on skip
+  const thisRun = G.session.grabs['RED COFFEE'] || 0;
+  const prev = parseInt(localStorage.getItem('rcrun-rc-balance') || '0');
+  localStorage.setItem('rcrun-rc-balance', (prev + thisRun).toString());
+
+  document.getElementById('capture-modal').classList.remove('active');
+  showFullReport();
+});
+
+// ============================================================
+// STAGE A — Game Over Screen
+// ============================================================
+
+let spikeChart = null;
+
+function showStageA() {
+  // Ensure RC cup image is ready
+  if (!rcCupDataURL) renderRCCupImage();
+
+  const archetype = classifyArchetype(G.session);
+  const rcCount = G.session.grabs['RED COFFEE'] || 0;
+
+  document.getElementById('go-rc-cup').src = rcCupDataURL;
+  document.getElementById('go-rc-count').textContent = rcCount + ' RED COFFEE' + (rcCount !== 1 ? 'S' : '');
+  document.getElementById('go-reason').textContent = DEATH_REASONS[Math.floor(Math.random() * DEATH_REASONS.length)];
+  document.getElementById('go-archetype-emoji').textContent = archetype.emoji;
+  document.getElementById('go-archetype-name').textContent = archetype.name;
+  document.getElementById('go-archetype-tagline').textContent = '"' + archetype.tagline + '"';
+
+  document.getElementById('hud').classList.remove('active');
+  document.getElementById('gameover').classList.add('active');
+}
+
+// ============================================================
+// STAGE B — Full Report
+// ============================================================
+
+function showFullReport() {
+  document.getElementById('gameover').classList.remove('active');
+  document.getElementById('capture-modal').classList.remove('active');
+  document.getElementById('report').classList.add('active');
+
+  if (!rcCupDataURL) renderRCCupImage();
+
+  const s = G.session;
+  const archetype = classifyArchetype(s);
+  const rcCount = s.grabs['RED COFFEE'] || 0;
+
+  // Hero
+  const heroEl = document.getElementById('rpt-hero');
+  heroEl.innerHTML = `
+    <img src="${rcCupDataURL}" alt="Red Coffee">
+    <div class="rpt-hero-count">${rcCount} RED COFFEE${rcCount !== 1 ? 'S' : ''}</div>
+    <div class="rpt-hero-sub">your haul</div>
+  `;
+
+  // Archetype
+  const archEl = document.getElementById('rpt-archetype');
+  archEl.innerHTML = `
+    <div class="rpt-archetype-emoji">${archetype.emoji}</div>
+    <div class="rpt-archetype-name">${archetype.name}</div>
+    <div class="rpt-archetype-tagline">"${archetype.tagline}"</div>
+  `;
+
+  // Spike area chart
+  renderSpikeChart();
+
+  // Tile breakdown
+  renderBreakdown();
+
+  // Wallet
+  renderWallet();
+}
+
+function renderSpikeChart() {
+  const s = G.session;
+  const duration = s.duration_ms / 1000;
+  const spikeWidth = Math.max(0.25, duration * 0.006);
+
+  const events = s.timeline.filter(e => e.type === 'grab').map(e => {
+    const isRepair = e.kind === 'good' || e.kind === 'coffee';
+    const value = isRepair ? getHealValue(e.label) * (e.kind === 'coffee' ? 1.5 : 1) : -getDamageValue(e.label);
+    return { t: e.t / 1000, v: value, isRepair };
+  });
+
+  const repairPoints = [{ x: 0, y: 0 }];
+  const damagePoints = [{ x: 0, y: 0 }];
+
+  events.forEach(e => {
+    const target = e.isRepair ? repairPoints : damagePoints;
+    target.push({ x: Math.max(0, e.t - spikeWidth), y: 0 });
+    target.push({ x: e.t, y: e.v });
+    target.push({ x: Math.min(duration, e.t + spikeWidth), y: 0 });
+  });
+
+  repairPoints.push({ x: duration, y: 0 });
+  damagePoints.push({ x: duration, y: 0 });
+
+  const allValues = events.map(e => e.v);
+  const yMax = Math.max(35, allValues.length ? Math.max(...allValues) + 5 : 35);
+  const yMin = Math.min(-25, allValues.length ? Math.min(...allValues) - 5 : -25);
+
+  const finalNet = s.net;
+  const netColor = finalNet >= 0 ? '#44ff88' : '#ff4444';
+  const netSign = finalNet >= 0 ? '+' : '';
+
+  // Destroy previous chart instance
+  if (spikeChart) {
+    spikeChart.destroy();
+    spikeChart = null;
+  }
+
+  const chartCanvas = document.getElementById('spike-chart-canvas');
+  spikeChart = new Chart(chartCanvas, {
+    type: 'line',
+    data: {
+      datasets: [
+        {
+          label: 'Repair',
+          data: repairPoints,
+          borderColor: '#44ff88',
+          backgroundColor: 'rgba(68, 255, 136, 0.35)',
+          borderWidth: 1.5,
+          fill: { target: { value: 0 } },
+          tension: 0,
+          pointRadius: 0,
+        },
+        {
+          label: 'Damage',
+          data: damagePoints,
+          borderColor: '#ff4444',
+          backgroundColor: 'rgba(255, 68, 68, 0.35)',
+          borderWidth: 1.5,
+          fill: { target: { value: 0 } },
+          tension: 0,
+          pointRadius: 0,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 600 },
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false },
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          min: 0,
+          max: Math.ceil(duration) || 1,
+          title: { display: true, text: 'seconds', color: '#555', font: { size: 10 } },
+          ticks: { stepSize: 15, color: '#555', font: { size: 9 } },
+          grid: { color: 'rgba(255,255,255,0.04)' },
+        },
+        y: {
+          min: yMin,
+          max: yMax,
+          title: { display: true, text: 'repair / damage', color: '#555', font: { size: 10 } },
+          ticks: { color: '#555', font: { size: 9 } },
+          grid: { color: 'rgba(255,255,255,0.04)' },
+        },
+      },
+    },
+  });
+
+  // Net summary
+  const netArea = document.getElementById('rpt-net-area');
+  netArea.innerHTML = `
+    <p class="rpt-net-summary" style="color:${netColor}">Net: ${netSign}${Math.abs(Math.round(finalNet))}</p>
+    <p class="rpt-net-caption">cumulative across the run</p>
+  `;
+
+  // Legend
+  const legendEl = document.getElementById('rpt-legend');
+  legendEl.innerHTML = `
+    <div class="rpt-legend-item"><div class="rpt-legend-swatch" style="background:#44ff88"></div> Repair</div>
+    <div class="rpt-legend-item"><div class="rpt-legend-swatch" style="background:#ff4444"></div> Damage</div>
+  `;
+
+  // console.assert diagnostic
+  (() => {
+    const repairGrabsCount = [...GOOD_LABELS, 'RED COFFEE']
+      .reduce((sum, l) => sum + (G.session.grabs[l] || 0), 0);
+    const damageGrabsCount = [...BAD_LABELS, ...SUPER_LABELS]
+      .reduce((sum, l) => sum + (G.session.grabs[l] || 0), 0);
+
+    const timelineRepair = G.session.timeline
+      .filter(e => e.type === 'grab' && (e.kind === 'good' || e.kind === 'coffee')).length;
+    const timelineDamage = G.session.timeline
+      .filter(e => e.type === 'grab' && (e.kind === 'bad' || e.kind === 'super')).length;
+
+    console.assert(
+      repairGrabsCount === timelineRepair,
+      `[Cell Lens] Repair mismatch: grabs sum ${repairGrabsCount} vs timeline ${timelineRepair}`
+    );
+    console.assert(
+      damageGrabsCount === timelineDamage,
+      `[Cell Lens] Damage mismatch: grabs sum ${damageGrabsCount} vs timeline ${timelineDamage}`
+    );
+  })();
+}
+
+function renderBreakdown() {
+  const s = G.session;
+  const el = document.getElementById('rpt-breakdown');
+
+  // Build tile HTML
+  function makeTile(label, count, type) {
+    const isRC = label === 'RED COFFEE';
+    const emoji = EMOJI_MAP[label] || '?';
+
+    if (type === 'repair') {
+      const emojiHtml = isRC
+        ? `<img class="rpt-tile-rc-img" src="${rcCupDataURL}" alt="RC">`
+        : `<span class="rpt-tile-emoji">${emoji}</span>`;
+      const extraClass = isRC ? ' rpt-tile-rc' : '';
+      return `<div class="rpt-tile rpt-tile-repair${extraClass}">
+        ${emojiHtml}
+        <div class="rpt-tile-info">
+          <span class="rpt-tile-label">${label}</span>
+          <span class="rpt-tile-count">${count}</span>
+        </div>
+      </div>`;
+    } else if (type === 'damage') {
+      return `<div class="rpt-tile rpt-tile-damage">
+        <span class="rpt-tile-emoji">${emoji}</span>
+        <div class="rpt-tile-info">
+          <span class="rpt-tile-label">${label}</span>
+          <span class="rpt-tile-count">${count}</span>
+        </div>
+      </div>`;
+    } else {
+      // missed
+      const emojiHtml = isRC
+        ? `<img class="rpt-tile-rc-img" src="${rcCupDataURL}" alt="RC" style="filter:grayscale(0.7)">`
+        : `<span class="rpt-tile-emoji">${emoji}</span>`;
+      return `<div class="rpt-tile rpt-tile-missed">
+        ${emojiHtml}
+        <div class="rpt-tile-info">
+          <span class="rpt-tile-label">${label}</span>
+          <span class="rpt-tile-count">${count}</span>
+        </div>
+      </div>`;
+    }
+  }
+
+  // Repair tiles
+  const repairLabels = [...GOOD_LABELS, 'RED COFFEE'];
+  let repairTilesHtml = '';
+  repairLabels.forEach(l => {
+    if (s.grabs[l] > 0) repairTilesHtml += makeTile(l, s.grabs[l], 'repair');
+  });
+  if (!repairTilesHtml) repairTilesHtml = '<div class="rpt-empty">Nothing this run.</div>';
+
+  // Damage tiles
+  const damageLabels = [...BAD_LABELS, ...SUPER_LABELS];
+  let damageTilesHtml = '';
+  damageLabels.forEach(l => {
+    if (s.grabs[l] > 0) damageTilesHtml += makeTile(l, s.grabs[l], 'damage');
+  });
+  if (!damageTilesHtml) damageTilesHtml = '<div class="rpt-empty">Clean run — no damage absorbed.</div>';
+
+  // Missed tiles (only repair items)
+  let missedTilesHtml = '';
+  repairLabels.forEach(l => {
+    if (s.misses[l] > 0) missedTilesHtml += makeTile(l, s.misses[l], 'missed');
+  });
+  if (!missedTilesHtml) missedTilesHtml = '<div class="rpt-empty">You caught every repair that came your way.</div>';
+
+  // Max bar comparison
+  const repairGot = repairLabels.reduce((sum, l) => sum + (s.grabs[l] || 0), 0);
+  const repairSpawned = repairGot + repairLabels.reduce((sum, l) => sum + (s.misses[l] || 0), 0);
+  const percent = repairSpawned > 0 ? (repairGot / repairSpawned * 100) : 0;
+
+  el.innerHTML = `
+    <div class="rpt-breakdown-header">YOUR RUN BREAKDOWN</div>
+
+    <div class="rpt-subsection-header" style="color:#44ff88">REPAIR YOU PICKED UP</div>
+    <div class="rpt-tiles">${repairTilesHtml}</div>
+
+    <div class="rpt-subsection-header" style="color:#ff4444">DAMAGE YOU ABSORBED</div>
+    <div class="rpt-tiles">${damageTilesHtml}</div>
+
+    <div class="rpt-subsection-header" style="color:#888">WHAT YOU MISSED</div>
+    <div class="rpt-subsection-subtitle">Repair that spawned but slipped past.</div>
+    <div class="rpt-tiles">${missedTilesHtml}</div>
+
+    <div class="rpt-maxbar-section">
+      <div class="rpt-subsection-header" style="color:#aaa">IF YOU'D CAUGHT EVERY REPAIR</div>
+      <div class="rpt-bar-row">
+        <span class="rpt-bar-label">You</span>
+        <div class="rpt-bar-track"><div class="rpt-bar-fill" style="width:${percent}%;background:#44ff88"></div></div>
+        <span class="rpt-bar-count">${repairGot}</span>
+      </div>
+      <div class="rpt-bar-row">
+        <span class="rpt-bar-label">Max</span>
+        <div class="rpt-bar-track"><div class="rpt-bar-fill" style="width:100%;background:rgba(68,255,136,0.35)"></div></div>
+        <span class="rpt-bar-count">${repairSpawned}</span>
+      </div>
+      <div class="rpt-bar-caption">what appeared in your run</div>
+    </div>
+  `;
+}
+
+function renderWallet() {
+  const el = document.getElementById('rpt-wallet');
+  const thisRun = G.session.grabs['RED COFFEE'] || 0;
+  const lifetimeTotal = parseInt(localStorage.getItem('rcrun-rc-balance') || '0');
+  const previousTotal = lifetimeTotal - thisRun;
+  const canRedeem = lifetimeTotal >= 10;
+  const redeemValue = Math.min(lifetimeTotal, 100);
+  const email = localStorage.getItem('rcrun-email') || '';
+
+  let statusHtml;
+  if (lifetimeTotal < 10) {
+    const need = 10 - lifetimeTotal;
+    statusHtml = `<div class="rpt-wallet-status">Need ${need} more to unlock redemption</div>`;
+  } else {
+    statusHtml = `<div class="rpt-wallet-status">Collect up to 100 Red Coffees for max ₹100 redemption</div>`;
+  }
+
+  el.innerHTML = `
+    <div class="rpt-wallet">
+      <div class="rpt-wallet-title">RED COFFEE WALLET</div>
+      <div class="rpt-wallet-big">${lifetimeTotal}</div>
+      <div class="rpt-wallet-collected">total collected</div>
+      <div class="rpt-wallet-breakdown">${thisRun} this run + ${Math.max(0, previousTotal)} from before</div>
+      ${statusHtml}
+      <button class="rpt-wallet-redeem" id="rpt-redeem-btn" ${canRedeem ? '' : 'disabled'}>REDEEM ₹${redeemValue}</button>
+    </div>
+  `;
+
+  document.getElementById('rpt-redeem-btn').addEventListener('click', function() {
+    if (!canRedeem) return;
+    const e = email || 'your registered email';
+    alert('Redemption opens at launch. We\'ll email your code to ' + e + '.');
+  });
+}
+
+// Share
+document.getElementById('rpt-share-btn').addEventListener('click', function() {
+  const shareData = {
+    title: 'Red Coffee Run — My Cell Lens',
+    text: 'I just played Red Coffee Run and got the ' + (classifyArchetype(G.session).name) + ' archetype!',
+    url: 'https://redcoffeerun.akunkafoods.com',
+  };
+  if (navigator.share) {
+    navigator.share(shareData).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(shareData.url).then(() => {
+      alert('Link copied to clipboard!');
+    }).catch(() => {});
+  }
+});
+
+// ============================================================
 // LIFECYCLE
 // ============================================================
 
 function startGame() {
+  // Dismiss any open screens
+  document.getElementById('gameover').classList.remove('active');
+  document.getElementById('capture-modal').classList.remove('active');
+  document.getElementById('report').classList.remove('active');
+
+  // Destroy chart
+  if (spikeChart) { spikeChart.destroy(); spikeChart = null; }
+
   resetState();
   G.running = true;
+
+  // Explicit resets for Play Again fix
+  G.targetLane = 0;
+  G.lane = 0;
   G.cellX = getCenterX();
+  G.jumpY = 0;
+  G.isJumping = false;
+  G.jumpVel = 0;
 
   document.getElementById('start-screen').classList.add('hidden');
-  document.getElementById('gameover').classList.remove('active');
   document.getElementById('hud').classList.add('active');
 
-  // Unlock + play — ALL synchronous in the click handler stack.
-  // iOS requires oscillator.start() in the same sync stack as the gesture.
   unlockAudio();
   if (soundEnabled) playChiptune();
 
@@ -1415,19 +2511,19 @@ function gameOver() {
   stopChiptune();
   sfxGameOver();
 
+  // Finalize session
+  G.session.ended_at = Date.now();
+  G.session.duration_ms = G.session.ended_at - G.session.started_at;
+  G.session.final_energy = Math.max(0, G.energy);
+  G.session.end_reason = 'burnout';
+  computeScoring();
+
   if (G.score > G.bestScore) {
     G.bestScore = G.score;
     localStorage.setItem('rcrun-best', G.bestScore.toString());
   }
 
-  document.getElementById('go-score').textContent = G.score;
-  document.getElementById('go-coffees').textContent = G.coffees;
-  document.getElementById('go-best').textContent = G.bestScore;
-  document.getElementById('go-reason').textContent = DEATH_REASONS[Math.floor(Math.random() * DEATH_REASONS.length)];
-  document.getElementById('go-insight').textContent = RC_INSIGHTS[Math.floor(Math.random() * RC_INSIGHTS.length)];
-
-  document.getElementById('hud').classList.remove('active');
-  document.getElementById('gameover').classList.add('active');
+  showStageA();
 }
 
 // ============================================================
@@ -1447,7 +2543,6 @@ document.addEventListener('keydown', (e) => {
 let touchStartX = 0, touchStartY = 0, touchTime = 0;
 
 document.addEventListener('touchstart', (e) => {
-  // Unlock on every touch — user gesture stack is required
   unlockAudio();
   touchStartX = e.touches[0].clientX;
   touchStartY = e.touches[0].clientY;
@@ -1472,14 +2567,21 @@ document.addEventListener('touchend', (e) => {
 // Buttons
 document.getElementById('start-btn').addEventListener('click', startGame);
 document.getElementById('restart-btn').addEventListener('click', startGame);
+document.getElementById('rpt-play-again').addEventListener('click', startGame);
 document.getElementById('sound-btn').addEventListener('click', toggleSound);
-document.getElementById('go-link').addEventListener('click', () => {
-  // Link to Red Coffee product or science page
-  window.open('https://akunkafoods.com', '_blank');
+document.getElementById('signin-btn').addEventListener('click', function() {
+  document.getElementById('gameover').classList.remove('active');
+  document.getElementById('capture-modal').classList.add('active');
 });
 
 // Init
 resetState();
+// Pre-render RC cup once fonts load
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => renderRCCupImage());
+} else {
+  setTimeout(renderRCCupImage, 500);
+}
 </script>
 
 </body>
