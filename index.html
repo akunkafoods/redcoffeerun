@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Red Coffee Run — Akunka</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bangers&family=DM+Sans:wght@400;600;700&display=swap');
 
@@ -477,6 +476,30 @@
     text-transform: uppercase;
   }
 
+  .rpt-netscore {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .rpt-netscore-value {
+    font-family: 'Bangers', cursive;
+    font-size: 36px;
+    letter-spacing: 1px;
+  }
+  .rpt-netscore-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    color: #888;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .rpt-netscore-insight {
+    font-size: 13px;
+    color: #bbb;
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+
   .rpt-archetype {
     text-align: center;
     margin-bottom: 20px;
@@ -498,57 +521,6 @@
     font-style: italic;
     margin-top: 4px;
     line-height: 1.5;
-  }
-
-  .rpt-chart-title {
-    font-family: 'Bangers', cursive;
-    font-size: 14px;
-    color: #fff;
-    letter-spacing: 2px;
-    text-align: center;
-    margin-bottom: 10px;
-  }
-  .spike-chart-wrap {
-    position: relative;
-    width: 100%;
-    max-width: 380px;
-    height: 280px;
-    margin: 0 auto;
-    overflow: hidden;
-  }
-  .spike-chart-wrap canvas {
-    width: 100% !important;
-    height: 100% !important;
-  }
-  .rpt-net-summary {
-    font-family: 'Bangers', cursive;
-    font-size: 20px;
-    text-align: center;
-    margin-top: 8px;
-  }
-  .rpt-net-caption {
-    font-size: 11px;
-    color: #777;
-    text-align: center;
-    margin-top: 2px;
-  }
-  .rpt-legend {
-    display: flex;
-    justify-content: center;
-    gap: 16px;
-    margin-top: 8px;
-  }
-  .rpt-legend-item {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    color: #aaa;
-  }
-  .rpt-legend-swatch {
-    width: 10px;
-    height: 10px;
-    border-radius: 2px;
   }
 
   /* Tile breakdown */
@@ -868,13 +840,8 @@
     <button class="rpt-share" id="rpt-share-btn">&#x1F4E4;</button>
   </div>
   <div class="rpt-section rpt-hero" id="rpt-hero"></div>
+  <div class="rpt-section rpt-netscore" id="rpt-netscore"></div>
   <div class="rpt-section rpt-archetype" id="rpt-archetype"></div>
-  <div class="rpt-section">
-    <div class="rpt-chart-title">YOUR RUN, SECOND BY SECOND</div>
-    <div class="spike-chart-wrap"><canvas id="spike-chart-canvas"></canvas></div>
-    <div id="rpt-net-area"></div>
-    <div class="rpt-legend" id="rpt-legend"></div>
-  </div>
   <div class="rpt-section" id="rpt-breakdown"></div>
   <div class="rpt-section">
     <div class="rpt-science">
@@ -2135,7 +2102,6 @@ document.getElementById('cap-skip').addEventListener('click', function() {
 // STAGE A — Game Over Screen
 // ============================================================
 
-let spikeChart = null;
 
 function showStageA() {
   // Ensure RC cup image is ready
@@ -2178,6 +2144,22 @@ function showFullReport() {
     <div class="rpt-hero-sub">your haul</div>
   `;
 
+  // Net score
+  const net = s.net;
+  const netColor = net >= 0 ? '#44ff88' : '#ff4444';
+  const netSign = net >= 0 ? '+' : '';
+  let netInsight;
+  if (net > 0) netInsight = 'Repair outpaced damage. Your cell is in the green.';
+  else if (net < 0) netInsight = 'Damage outpaced repair. Your cell took a hit.';
+  else netInsight = 'Damage and repair broke even. Right on the edge.';
+
+  const netEl = document.getElementById('rpt-netscore');
+  netEl.innerHTML = `
+    <div class="rpt-netscore-value" style="color:${netColor}">Net: ${netSign}${Math.round(net)}</div>
+    <div class="rpt-netscore-label">net score</div>
+    <div class="rpt-netscore-insight">${netInsight}</div>
+  `;
+
   // Archetype
   const archEl = document.getElementById('rpt-archetype');
   archEl.innerHTML = `
@@ -2186,148 +2168,11 @@ function showFullReport() {
     <div class="rpt-archetype-tagline">"${archetype.tagline}"</div>
   `;
 
-  // Spike area chart
-  renderSpikeChart();
-
   // Tile breakdown
   renderBreakdown();
 
   // Wallet
   renderWallet();
-}
-
-function renderSpikeChart() {
-  const s = G.session;
-  const duration = s.duration_ms / 1000;
-  const spikeWidth = Math.max(1.0, duration * 0.02);
-
-  const events = s.timeline.filter(e => e.type === 'grab').map(e => {
-    const isRepair = e.kind === 'good' || e.kind === 'coffee';
-    const value = isRepair ? getHealValue(e.label) * (e.kind === 'coffee' ? 1.5 : 1) : -getDamageValue(e.label);
-    return { t: e.t / 1000, v: value, isRepair };
-  });
-
-  const repairPoints = [{ x: 0, y: 0 }];
-  const damagePoints = [{ x: 0, y: 0 }];
-
-  events.forEach(e => {
-    const target = e.isRepair ? repairPoints : damagePoints;
-    target.push({ x: Math.max(0, e.t - spikeWidth), y: 0 });
-    target.push({ x: e.t, y: e.v });
-    target.push({ x: Math.min(duration, e.t + spikeWidth), y: 0 });
-  });
-
-  repairPoints.push({ x: duration, y: 0 });
-  damagePoints.push({ x: duration, y: 0 });
-
-  // Ensure points are sorted by x (timeline events may not be perfectly ordered)
-  repairPoints.sort((a, b) => a.x - b.x);
-  damagePoints.sort((a, b) => a.x - b.x);
-
-  const allValues = events.map(e => e.v);
-  const yMax = Math.max(35, allValues.length ? Math.max(...allValues) + 5 : 35);
-  const yMin = Math.min(-25, allValues.length ? Math.min(...allValues) - 5 : -25);
-
-  const finalNet = s.net;
-  const netColor = finalNet >= 0 ? '#44ff88' : '#ff4444';
-  const netSign = finalNet >= 0 ? '+' : '';
-
-  // Destroy previous chart instance
-  if (spikeChart) {
-    spikeChart.destroy();
-    spikeChart = null;
-  }
-
-  const chartCanvas = document.getElementById('spike-chart-canvas');
-  spikeChart = new Chart(chartCanvas, {
-    type: 'line',
-    data: {
-      datasets: [
-        {
-          label: 'Repair',
-          data: repairPoints,
-          borderColor: '#44ff88',
-          backgroundColor: 'rgba(68, 255, 136, 0.35)',
-          borderWidth: 1.5,
-          fill: { target: { value: 0 } },
-          tension: 0,
-          pointRadius: 0,
-        },
-        {
-          label: 'Damage',
-          data: damagePoints,
-          borderColor: '#ff4444',
-          backgroundColor: 'rgba(255, 68, 68, 0.35)',
-          borderWidth: 1.5,
-          fill: { target: { value: 0 } },
-          tension: 0,
-          pointRadius: 0,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: { duration: 600 },
-      plugins: {
-        legend: { display: false },
-        tooltip: { enabled: false },
-      },
-      scales: {
-        x: {
-          type: 'linear',
-          min: 0,
-          max: Math.ceil(duration) || 1,
-          title: { display: true, text: 'seconds', color: '#555', font: { size: 10 } },
-          ticks: { stepSize: 15, color: '#555', font: { size: 9 } },
-          grid: { color: 'rgba(255,255,255,0.04)' },
-        },
-        y: {
-          min: yMin,
-          max: yMax,
-          title: { display: true, text: 'repair / damage', color: '#555', font: { size: 10 } },
-          ticks: { color: '#555', font: { size: 9 } },
-          grid: { color: 'rgba(255,255,255,0.04)' },
-        },
-      },
-    },
-  });
-
-  // Net summary
-  const netArea = document.getElementById('rpt-net-area');
-  netArea.innerHTML = `
-    <p class="rpt-net-summary" style="color:${netColor}">Net: ${netSign}${Math.abs(Math.round(finalNet))}</p>
-    <p class="rpt-net-caption">cumulative across the run</p>
-  `;
-
-  // Legend
-  const legendEl = document.getElementById('rpt-legend');
-  legendEl.innerHTML = `
-    <div class="rpt-legend-item"><div class="rpt-legend-swatch" style="background:#44ff88"></div> Repair</div>
-    <div class="rpt-legend-item"><div class="rpt-legend-swatch" style="background:#ff4444"></div> Damage</div>
-  `;
-
-  // console.assert diagnostic
-  (() => {
-    const repairGrabsCount = [...GOOD_LABELS, 'RED COFFEE']
-      .reduce((sum, l) => sum + (G.session.grabs[l] || 0), 0);
-    const damageGrabsCount = [...BAD_LABELS, ...SUPER_LABELS]
-      .reduce((sum, l) => sum + (G.session.grabs[l] || 0), 0);
-
-    const timelineRepair = G.session.timeline
-      .filter(e => e.type === 'grab' && (e.kind === 'good' || e.kind === 'coffee')).length;
-    const timelineDamage = G.session.timeline
-      .filter(e => e.type === 'grab' && (e.kind === 'bad' || e.kind === 'super')).length;
-
-    console.assert(
-      repairGrabsCount === timelineRepair,
-      `[Cell Lens] Repair mismatch: grabs sum ${repairGrabsCount} vs timeline ${timelineRepair}`
-    );
-    console.assert(
-      damageGrabsCount === timelineDamage,
-      `[Cell Lens] Damage mismatch: grabs sum ${damageGrabsCount} vs timeline ${timelineDamage}`
-    );
-  })();
 }
 
 function renderBreakdown() {
@@ -2492,9 +2337,6 @@ function startGame() {
   document.getElementById('gameover').classList.remove('active');
   document.getElementById('capture-modal').classList.remove('active');
   document.getElementById('report').classList.remove('active');
-
-  // Destroy chart
-  if (spikeChart) { spikeChart.destroy(); spikeChart = null; }
 
   resetState();
   G.running = true;
