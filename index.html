@@ -508,10 +508,17 @@
     text-align: center;
     margin-bottom: 10px;
   }
-  #spike-chart-canvas {
+  .spike-chart-wrap {
+    position: relative;
     width: 100%;
     max-width: 380px;
-    height: 200px;
+    height: 280px;
+    margin: 0 auto;
+    overflow: hidden;
+  }
+  .spike-chart-wrap canvas {
+    width: 100% !important;
+    height: 100% !important;
   }
   .rpt-net-summary {
     font-family: 'Bangers', cursive;
@@ -864,7 +871,7 @@
   <div class="rpt-section rpt-archetype" id="rpt-archetype"></div>
   <div class="rpt-section">
     <div class="rpt-chart-title">YOUR RUN, SECOND BY SECOND</div>
-    <canvas id="spike-chart-canvas"></canvas>
+    <div class="spike-chart-wrap"><canvas id="spike-chart-canvas"></canvas></div>
     <div id="rpt-net-area"></div>
     <div class="rpt-legend" id="rpt-legend"></div>
   </div>
@@ -2192,7 +2199,7 @@ function showFullReport() {
 function renderSpikeChart() {
   const s = G.session;
   const duration = s.duration_ms / 1000;
-  const spikeWidth = Math.max(0.25, duration * 0.006);
+  const spikeWidth = Math.max(1.0, duration * 0.02);
 
   const events = s.timeline.filter(e => e.type === 'grab').map(e => {
     const isRepair = e.kind === 'good' || e.kind === 'coffee';
@@ -2212,6 +2219,10 @@ function renderSpikeChart() {
 
   repairPoints.push({ x: duration, y: 0 });
   damagePoints.push({ x: duration, y: 0 });
+
+  // Ensure points are sorted by x (timeline events may not be perfectly ordered)
+  repairPoints.sort((a, b) => a.x - b.x);
+  damagePoints.sort((a, b) => a.x - b.x);
 
   const allValues = events.map(e => e.v);
   const yMax = Math.max(35, allValues.length ? Math.max(...allValues) + 5 : 35);
