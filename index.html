@@ -2041,18 +2041,39 @@ function classifyArchetype(s) {
 // ============================================================
 
 function submitCapture(data) {
-  console.log('[STUB] Capture payload:', {
+  const thisRun = G.session.grabs['RED COFFEE'] || 0;
+  const archetype = classifyArchetype(G.session);
+  const payload = {
     email: data.email,
     phone: data.phone,
-    consent: data.consent,
-    session: G.session,
-    archetype: classifyArchetype(G.session).slug,
-    rc_earned: G.session.grabs['RED COFFEE']
+    src: new URLSearchParams(window.location.search).get('src') || 'direct',
+    archetype: archetype.slug,
+    red_coffees: thisRun,
+    net_score: G.session.score,
+    session_id: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10),
+    website: data.honeypot || ''
+  };
+
+  fetch('https://script.google.com/macros/s/AKfycbxNTRqx7RTFmvkoXr9T8p_umABjLd33V3LqI2GAaQBpn3eB8bmZ8CZ3QIM655bTqBdehw/exec', {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).then(function(res) {
+    if (res.type === 'opaque') {
+      console.log('[Capture] Sent (opaque response — Apps Script no-cors).');
+    } else if (res.ok) {
+      console.log('[Capture] Sent successfully.');
+    } else {
+      console.error('[Capture] Server returned', res.status);
+    }
+  }).catch(function(err) {
+    console.error('[Capture] Network error:', err);
   });
 
+  // Don't block UX — proceed immediately
   localStorage.setItem('rcrun-email', data.email);
 
-  const thisRun = G.session.grabs['RED COFFEE'] || 0;
   const prev = parseInt(localStorage.getItem('rcrun-rc-balance') || '0');
   localStorage.setItem('rcrun-rc-balance', (prev + thisRun).toString());
 
@@ -2085,7 +2106,8 @@ document.getElementById('capture-form').addEventListener('submit', function(e) {
     return;
   }
 
-  submitCapture({ email, phone: '+91' + phone, consent });
+  const honeypot = (this.querySelector('[name="website"]') || {}).value || '';
+  submitCapture({ email, phone: '+91' + phone, consent, honeypot });
 });
 
 document.getElementById('cap-skip').addEventListener('click', function() {
