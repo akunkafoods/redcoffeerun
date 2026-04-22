@@ -757,6 +757,24 @@
   }
 
 </style>
+
+<!-- Meta Pixel -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '1738245774224105');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=1738245774224105&ev=PageView&noscript=1"
+/></noscript>
+
 </head>
 <body>
 
@@ -2053,6 +2071,13 @@ function submitCapture(data) {
     session_id: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10),
     website: data.honeypot || ''
   };
+
+  if (typeof fbq === 'function') {
+    fbq('track', 'Lead', {
+      content_name: 'Red Coffee Run Signup',
+      content_category: 'game_signup'
+    });
+  }
 
   fetch('https://script.google.com/macros/s/AKfycbxNTRqx7RTFmvkoXr9T8p_umABjLd33V3LqI2GAaQBpn3eB8bmZ8CZ3QIM655bTqBdehw/exec', {
     method: 'POST',
