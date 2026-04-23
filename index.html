@@ -2067,7 +2067,7 @@ function submitCapture(data) {
     src: new URLSearchParams(window.location.search).get('src') || 'direct',
     archetype: archetype.slug,
     red_coffees: thisRun,
-    net_score: G.session.score,
+    net_score: G.session.net,
     session_id: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10),
     website: data.honeypot || ''
   };
