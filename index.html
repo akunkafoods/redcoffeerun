@@ -9,6 +9,10 @@
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
+  html, body {
+    overscroll-behavior: contain;
+  }
+
   body {
     background: #0a0a12;
     overflow: hidden;
@@ -756,6 +760,31 @@
     box-shadow: 0 0 0 #8b1a0a;
   }
 
+  /* Tap zones */
+  #tap-zones {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 5; display: none; pointer-events: none;
+  }
+  #tap-zones.active { display: flex; pointer-events: auto; }
+  .tap-zone {
+    flex: 1; height: 100%;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Onboarding hint arrows */
+  #tap-hint {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 6; pointer-events: none; display: none;
+  }
+  #tap-hint.active { display: flex; }
+  .tap-hint-arrow {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    font-size: 48px; color: rgba(255,255,255,0.35);
+    transition: opacity 0.8s ease-out;
+  }
+  .tap-hint-arrow.fade { opacity: 0; }
+
 </style>
 
 <!-- Meta Pixel -->
@@ -779,6 +808,18 @@ src="https://www.facebook.com/tr?id=1738245774224105&ev=PageView&noscript=1"
 <body>
 
 <canvas id="game"></canvas>
+
+<!-- Tap zones (mobile lane controls) -->
+<div id="tap-zones">
+  <div class="tap-zone" id="tap-left"></div>
+  <div class="tap-zone" id="tap-right"></div>
+</div>
+
+<!-- Onboarding hint -->
+<div id="tap-hint">
+  <div class="tap-hint-arrow" id="hint-left">&#9664;</div>
+  <div class="tap-hint-arrow" id="hint-right">&#9654;</div>
+</div>
 
 <!-- HUD -->
 <div id="hud">
@@ -2402,12 +2443,27 @@ function startGame() {
   unlockAudio();
   if (soundEnabled) playChiptune();
 
+  // Show tap zones
+  document.getElementById('tap-zones').classList.add('active');
+
+  // Onboarding hint (first play only)
+  if (!localStorage.getItem('rcrun-controls-shown')) {
+    localStorage.setItem('rcrun-controls-shown', '1');
+    const hint = document.getElementById('tap-hint');
+    hint.classList.add('active');
+    const arrows = hint.querySelectorAll('.tap-hint-arrow');
+    setTimeout(() => { arrows.forEach(a => a.classList.add('fade')); }, 2200);
+    setTimeout(() => { hint.classList.remove('active'); arrows.forEach(a => a.classList.remove('fade')); }, 3000);
+  }
+
   flash('SURVIVE THE GRIND!', '#e84a27');
   gameLoop();
 }
 
 function gameOver() {
   G.running = false;
+  document.getElementById('tap-zones').classList.remove('active');
+  document.getElementById('tap-hint').classList.remove('active');
   stopChiptune();
   sfxGameOver();
 
@@ -2463,6 +2519,28 @@ document.addEventListener('touchend', (e) => {
     if (!G.isJumping) { G.isJumping = true; G.jumpVel = 14; }
   }
 }, { passive: true });
+
+// Tap-zone controls (left/right halves of screen)
+document.getElementById('tap-left').addEventListener('touchstart', (e) => {
+  e.stopPropagation();
+  unlockAudio();
+  if (G.running) G.targetLane = Math.max(-1, G.targetLane - 1);
+}, { passive: true });
+
+document.getElementById('tap-right').addEventListener('touchstart', (e) => {
+  e.stopPropagation();
+  unlockAudio();
+  if (G.running) G.targetLane = Math.min(1, G.targetLane + 1);
+}, { passive: true });
+
+// Prevent edge-swipe back/forward navigation on iOS
+document.addEventListener('touchmove', (e) => {
+  if (!G.running) return;
+  const x = e.touches[0].clientX;
+  if (x < 20 || x > window.innerWidth - 20) {
+    e.preventDefault();
+  }
+}, { passive: false });
 
 // Buttons
 document.getElementById('start-btn').addEventListener('click', startGame);
