@@ -182,6 +182,10 @@
     border: 1.5px solid #ffcc44;
   }
 
+  @keyframes btn-glow {
+    0%, 100% { box-shadow: 0 4px 0 #8b1a0a, 0 0 20px rgba(232, 74, 39, 0.25); }
+    50%      { box-shadow: 0 4px 0 #8b1a0a, 0 0 50px rgba(232, 74, 39, 0.5); }
+  }
   .start-btn {
     font-family: 'Bangers', cursive;
     font-size: 16px;
@@ -194,16 +198,18 @@
     margin-top: 14px;
     box-shadow: 0 4px 0 #8b1a0a, 0 0 40px rgba(232, 74, 39, 0.3);
     letter-spacing: 2px;
-    transition: all 0.1s;
+    animation: btn-glow 2.5s ease-in-out infinite;
   }
   .start-btn:active {
+    animation: none;
     transform: translateY(4px);
     box-shadow: 0 0 0 #8b1a0a, 0 0 20px rgba(232, 74, 39, 0.3);
   }
   .s-hint {
-    font-size: 10px;
-    color: #555;
-    letter-spacing: 1px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 1.5px;
+    margin-top: 12px;
   }
 
   /* Game Over — Stage A */
@@ -851,7 +857,7 @@ src="https://www.facebook.com/tr?id=1738245774224105&ev=PageView&noscript=1"
     <div class="s-legend-item"><div class="s-legend-dot dot-coffee"></div> Red Coffee</div>
   </div>
   <button class="start-btn" id="start-btn">TAP TO RUN</button>
-  <div class="s-hint">← SWIPE to move · SWIPE UP to jump →</div>
+  <div class="s-hint">&#9664; Tap left or right to move &#9654;</div>
 </div>
 
 <!-- Game Over — Stage A -->
@@ -1144,13 +1150,10 @@ function resetState() {
     maxEnergy: 100,
     score: 0,
     coffees: 0,
-    speed: 3.8,
+    speed: 4.56,
     lane: 0,
     targetLane: 0,
     cellX: getCenterX(),
-    jumpY: 0,
-    isJumping: false,
-    jumpVel: 0,
     items: [],
     particles: [],
     bgDots: [],
@@ -1245,7 +1248,7 @@ function drawBackground() {
 
 function drawCell(x, y) {
   const bounce = Math.sin(G.frameCount * 0.15) * 3;
-  const drawY = y + bounce - G.jumpY;
+  const drawY = y + bounce;
   const isEq = G.equilibriumTimer > 0;
 
   let sx = 0, sy = 0;
@@ -1599,7 +1602,7 @@ function shake(intensity, duration) {
 }
 
 function checkCollision(cellX, cellY, item) {
-  const dist = Math.sqrt((cellX - item.x) ** 2 + ((cellY - G.jumpY) - item.y) ** 2);
+  const dist = Math.sqrt((cellX - item.x) ** 2 + (cellY - item.y) ** 2);
 
   const targetX = laneToX(G.targetLane);
   const inTransition = Math.abs(cellX - targetX) > 8;
@@ -1616,10 +1619,10 @@ function update() {
   G.frameCount++;
   G.score += Math.floor(G.speed * 0.4);
 
-  const INITIAL_SPEED = 3.8;
+  const INITIAL_SPEED = 4.56;
   const MAX_SPEED = INITIAL_SPEED * 5;
   const STEP_INTERVAL = 600;
-  const SPEED_STEP = 1.5;
+  const SPEED_STEP = 1.8;
   const targetSpeed = Math.min(
     INITIAL_SPEED + Math.floor(G.frameCount / STEP_INTERVAL) * SPEED_STEP,
     MAX_SPEED
@@ -1642,17 +1645,7 @@ function update() {
   const targetX = laneToX(G.targetLane);
   G.cellX += (targetX - G.cellX) * 0.35;
 
-  if (G.isJumping) {
-    G.jumpY += G.jumpVel;
-    G.jumpVel -= 1.3;
-    if (G.jumpY <= 0) {
-      G.jumpY = 0;
-      G.isJumping = false;
-      G.jumpVel = 0;
-    }
-  }
-
-  const spawnRate = Math.max(25, 60 - G.speed * 2.5);
+  const spawnRate = Math.max(21, 50 - G.speed * 2.5);
   if (G.frameCount % Math.floor(spawnRate) === 0) spawnItem();
 
   if (G.speed > 6 && G.frameCount % Math.floor(spawnRate * 0.6) === 0) {
@@ -2451,9 +2444,6 @@ function startGame() {
   G.targetLane = 0;
   G.lane = 0;
   G.cellX = getCenterX();
-  G.jumpY = 0;
-  G.isJumping = false;
-  G.jumpVel = 0;
 
   document.getElementById('start-screen').classList.add('hidden');
   document.getElementById('hud').classList.add('active');
@@ -2508,35 +2498,7 @@ document.addEventListener('keydown', (e) => {
   if (!G.running) return;
   if (e.key === 'ArrowLeft' || e.key === 'a') G.targetLane = Math.max(-1, G.targetLane - 1);
   if (e.key === 'ArrowRight' || e.key === 'd') G.targetLane = Math.min(1, G.targetLane + 1);
-  if ((e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') && !G.isJumping) {
-    G.isJumping = true;
-    G.jumpVel = 14;
-  }
 });
-
-let touchStartX = 0, touchStartY = 0, touchTime = 0;
-
-document.addEventListener('touchstart', (e) => {
-  unlockAudio();
-  touchStartX = e.touches[0].clientX;
-  touchStartY = e.touches[0].clientY;
-  touchTime = Date.now();
-}, { passive: true });
-
-document.addEventListener('touchend', (e) => {
-  if (!G.running) return;
-  const dx = e.changedTouches[0].clientX - touchStartX;
-  const dy = e.changedTouches[0].clientY - touchStartY;
-  const dt = Date.now() - touchTime;
-  if (dt > 300) return;
-
-  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 25) {
-    if (dx > 0) G.targetLane = Math.min(1, G.targetLane + 1);
-    else G.targetLane = Math.max(-1, G.targetLane - 1);
-  } else if (dy < -25) {
-    if (!G.isJumping) { G.isJumping = true; G.jumpVel = 14; }
-  }
-}, { passive: true });
 
 // Tap-zone controls (left/right halves of screen)
 document.getElementById('tap-left').addEventListener('touchstart', (e) => {
