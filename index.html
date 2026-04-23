@@ -2402,16 +2402,34 @@ function renderWallet() {
 
 // Share
 document.getElementById('rpt-share-btn').addEventListener('click', function() {
+  const rc = G.session.grabs['RED COFFEE'] || 0;
+  const net = G.session.net;
+  const arch = classifyArchetype(G.session);
+  const netSign = net >= 0 ? '+' : '';
+  const intro = net >= 0
+    ? 'I just played Red Coffee Run \u{1F9C3}'
+    : 'My cell had a rough day on Red Coffee Run \u{1F605}';
+  const outro = net >= 0 ? 'Can you beat me?' : 'Think you can do better?';
+  const text = intro + '\n'
+    + 'Red Coffees Collected: ' + rc + ' \u2615\n'
+    + 'Net: ' + netSign + Math.round(net) + ' | Archetype: ' + arch.name + ' ' + arch.emoji + '\n'
+    + outro;
+
   const shareData = {
-    title: 'Red Coffee Run — My Cell Lens',
-    text: 'I just played Red Coffee Run and got the ' + (classifyArchetype(G.session).name) + ' archetype!',
-    url: 'https://redcoffeerun.akunkafoods.com',
+    title: 'Red Coffee Run',
+    text: text,
+    url: 'https://redcoffeerun.akunkafoods.com/',
   };
+
   if (navigator.share) {
     navigator.share(shareData).catch(() => {});
   } else {
-    navigator.clipboard.writeText(shareData.url).then(() => {
-      alert('Link copied to clipboard!');
+    var fullText = text + '\nhttps://redcoffeerun.akunkafoods.com/';
+    navigator.clipboard.writeText(fullText).then(() => {
+      var btn = document.getElementById('rpt-share-btn');
+      var orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
     }).catch(() => {});
   }
 });
