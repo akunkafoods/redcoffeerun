@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Red Coffee Run — Akunka</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Bangers&family=DM+Sans:wght@400;600;700&display=swap');
@@ -25,7 +25,13 @@
     user-select: none;
   }
 
-  canvas#game { display: block; margin: 0 auto; }
+  canvas#game {
+    display: block; margin: 0 auto;
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
 
   /* HUD */
   #hud {
@@ -103,13 +109,20 @@
   .hud-score {
     font-family: 'Bangers', cursive;
     font-size: 22px;
-    color: #fff;
     letter-spacing: 1px;
   }
   .hud-coffees {
     font-family: 'Bangers', cursive;
     font-size: 13px;
     color: #e84a27;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 3px;
+  }
+  .hud-rc-icon {
+    width: 18px; height: 18px;
+    vertical-align: middle;
   }
   .hud-timer {
     font-family: 'Bangers', cursive;
@@ -261,6 +274,11 @@
     font-family: 'Bangers', cursive;
     font-size: 22px;
     color: #e84a27;
+    letter-spacing: 1px;
+  }
+  .go-net {
+    font-family: 'Bangers', cursive;
+    font-size: 20px;
     letter-spacing: 1px;
   }
   .go-archetype {
@@ -800,6 +818,9 @@
     flex: 1; height: 100%;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   /* Onboarding hint arrows */
@@ -862,8 +883,8 @@ src="https://www.facebook.com/tr?id=1738245774224105&ev=PageView&noscript=1"
   </div>
   <div class="hud-sound" id="sound-btn">🔊</div>
   <div class="hud-right">
-    <div class="hud-score" id="hud-score">0</div>
-    <div class="hud-coffees" id="hud-coffees">☕ 0</div>
+    <div class="hud-score" id="hud-score" style="color:#44ff88">Net: +0</div>
+    <div class="hud-coffees"><img class="hud-rc-icon" id="hud-rc-icon" src="" alt="RC"> <span id="hud-coffees">0</span></div>
     <div class="hud-timer" id="hud-timer">00:00</div>
   </div>
 </div>
@@ -893,6 +914,7 @@ src="https://www.facebook.com/tr?id=1738245774224105&ev=PageView&noscript=1"
     <img id="go-rc-cup" src="" alt="Red Coffee">
     <div class="go-rc-count" id="go-rc-count">0 RED COFFEES</div>
   </div>
+  <div class="go-net" id="go-net"></div>
   <div class="go-archetype">
     <div class="go-archetype-emoji" id="go-archetype-emoji"></div>
     <div class="go-archetype-name" id="go-archetype-name"></div>
@@ -1140,6 +1162,9 @@ function renderRCCupImage() {
   x.fillText('RED', cx - 1*s, cy + 2*s);
 
   rcCupDataURL = c.toDataURL();
+  // Set HUD icon
+  var hudIcon = document.getElementById('hud-rc-icon');
+  if (hudIcon) hudIcon.src = rcCupDataURL;
   return rcCupDataURL;
 }
 
@@ -1175,6 +1200,7 @@ function resetState() {
     energy: 100,
     maxEnergy: 100,
     score: 0,
+    liveNet: 0,
     coffees: 0,
     speed: 4.56,
     lane: 0,
@@ -1717,6 +1743,7 @@ function update() {
     });
 
     if (item.kind === 'super') {
+      G.liveNet -= item.data.damage;
       if (G.equilibriumTimer > 0) {
         G.energy -= item.data.damage * 0.4;
         flash(item.data.desc + ' (shielded!)', '#88ffcc');
@@ -1731,6 +1758,7 @@ function update() {
         sfxSuperHit();
       }
     } else if (item.kind === 'bad') {
+      G.liveNet -= item.data.damage;
       if (G.equilibriumTimer > 0) {
         G.energy -= item.data.damage * 0.3;
         flash(item.data.desc + ' (shielded!)', '#88ffcc');
@@ -1745,6 +1773,7 @@ function update() {
         sfxHit();
       }
     } else if (item.kind === 'coffee') {
+      G.liveNet += item.data.heal * 1.5;
       G.energy = Math.min(G.maxEnergy, G.energy + item.data.heal);
       G.coffees++;
       G.comboGood++;
@@ -1754,6 +1783,7 @@ function update() {
       spawnParticles(item.x, item.y, '#ffcc44', 10, 'circle');
       sfxCoffee();
     } else {
+      G.liveNet += item.data.heal;
       G.energy = Math.min(G.maxEnergy, G.energy + item.data.heal);
       G.comboGood++;
       flash(item.data.desc, '#44ff88');
@@ -1767,8 +1797,11 @@ function update() {
   G.energy = Math.max(0, Math.min(G.maxEnergy, G.energy));
 
   document.getElementById('energy-bar').style.width = G.energy + '%';
-  document.getElementById('hud-score').textContent = G.score;
-  document.getElementById('hud-coffees').textContent = '☕ ' + G.coffees;
+  const liveNetSign = G.liveNet >= 0 ? '+' : '';
+  const hudScoreEl = document.getElementById('hud-score');
+  hudScoreEl.textContent = 'Net: ' + liveNetSign + Math.round(G.liveNet);
+  hudScoreEl.style.color = G.liveNet >= 0 ? '#44ff88' : '#ff4444';
+  document.getElementById('hud-coffees').textContent = G.coffees;
 
   const ebar = document.getElementById('energy-bar');
   if (G.equilibriumTimer > 0) {
@@ -2229,6 +2262,11 @@ function showStageA() {
 
   document.getElementById('go-rc-cup').src = rcCupDataURL;
   document.getElementById('go-rc-count').textContent = rcCount + ' RED COFFEE' + (rcCount !== 1 ? 'S' : '');
+  const goNet = G.session.net;
+  const goNetSign = goNet >= 0 ? '+' : '';
+  const goNetEl = document.getElementById('go-net');
+  goNetEl.textContent = 'NET: ' + goNetSign + Math.round(goNet);
+  goNetEl.style.color = goNet >= 0 ? '#44ff88' : '#ff4444';
   document.getElementById('go-reason').textContent = DEATH_REASONS[Math.floor(Math.random() * DEATH_REASONS.length)];
   document.getElementById('go-archetype-emoji').textContent = archetype.emoji;
   document.getElementById('go-archetype-name').textContent = archetype.name;
@@ -2265,10 +2303,11 @@ function showFullReport() {
   const net = s.net;
   const netColor = net >= 0 ? '#44ff88' : '#ff4444';
   const netSign = net >= 0 ? '+' : '';
+  const survTime = formatTime(s.survival_seconds);
   let netInsight;
-  if (net > 0) netInsight = 'Repair outpaced damage. Your cell is in the green.';
-  else if (net < 0) netInsight = 'Damage outpaced repair. Your cell took a hit.';
-  else netInsight = 'Damage and repair broke even. Right on the edge.';
+  if (net >= 10) netInsight = 'Your cell repaired faster than it decayed for ' + survTime + ' \u2014 one small choice at a time.';
+  else if (net <= -10) netInsight = 'Damage outpaced repair this run \u2014 ' + survTime + ' of holding on. Next run starts fresh.';
+  else netInsight = 'Equilibrium for ' + survTime + ' \u2014 neither gaining nor losing ground. This is most days.';
 
   const netEl = document.getElementById('rpt-netscore');
   netEl.innerHTML = `
