@@ -1185,6 +1185,62 @@ function renderRCCupImage() {
 }
 
 // ============================================================
+// ENDPOINT
+// ============================================================
+
+const ENDPOINT_URL = 'https://script.google.com/a/macros/akunkafoods.com/s/AKfycbyuoJaSJtUrC_59b5NP35PIS71y17R6hSu_gHJ9KriqLscyxRkONlK5j5IbmjrkwhuPVw/exec';
+
+// ============================================================
+// SERVER SYNC
+// ============================================================
+
+function postSession() {
+  var email = localStorage.getItem('rcrun-email');
+  if (!email) return;
+  var thisRun = G.session.grabs['RED COFFEE'] || 0;
+  var archetype = classifyArchetype(G.session);
+  fetch(ENDPOINT_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: 'session',
+      email: email,
+      rc_count: thisRun,
+      session_id: G.session.session_id,
+      archetype: archetype.slug,
+      net_score: G.session.net,
+      survival_seconds: G.session.survival_seconds,
+      src: new URLSearchParams(window.location.search).get('src') || 'direct'
+    })
+  }).then(function() {
+    console.log('[Session] Posted.');
+  }).catch(function(err) {
+    console.error('[Session] Error:', err);
+  });
+}
+
+function syncBalance() {
+  var email = localStorage.getItem('rcrun-email');
+  if (!email) return;
+  fetch(ENDPOINT_URL + '?action=balance&email=' + encodeURIComponent(email), {
+    mode: 'cors'
+  }).then(function(res) {
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }).then(function(data) {
+    if (typeof data.rc_balance === 'number') {
+      var local = parseInt(localStorage.getItem('rcrun-rc-balance') || '0');
+      var best = Math.max(data.rc_balance, local);
+      localStorage.setItem('rcrun-rc-balance', best.toString());
+      console.log('[Balance] Server:', data.rc_balance, 'Local:', local, '→', best);
+    }
+  }).catch(function(err) {
+    console.error('[Balance] Sync failed (using local):', err);
+  });
+}
+
+// ============================================================
 // localStorage migration: coins → rc
 // ============================================================
 (function migrateLocalStorage() {
@@ -2198,7 +2254,7 @@ function submitCapture(data) {
     });
   }
 
-  fetch('https://script.google.com/macros/s/AKfycbxNTRqx7RTFmvkoXr9T8p_umABjLd33V3LqI2GAaQBpn3eB8bmZ8CZ3QIM655bTqBdehw/exec', {
+  fetch(ENDPOINT_URL, {
     method: 'POST',
     mode: 'no-cors',
     headers: { 'Content-Type': 'application/json' },
@@ -2287,6 +2343,14 @@ function showStageA() {
   document.getElementById('go-archetype-emoji').textContent = archetype.emoji;
   document.getElementById('go-archetype-name').textContent = archetype.name;
   document.getElementById('go-archetype-tagline').textContent = '"' + archetype.tagline + '"';
+
+  // Update CTA based on returning vs new player
+  var signinBtn = document.getElementById('signin-btn');
+  if (localStorage.getItem('rcrun-email')) {
+    signinBtn.innerHTML = 'VIEW YOUR REPORT<br>& REDEEM RED COFFEES';
+  } else {
+    signinBtn.innerHTML = 'SIGN IN TO GET YOUR REPORT<br>& REDEEM RED COFFEES';
+  }
 
   document.getElementById('hud').classList.remove('active');
   document.getElementById('gameover').classList.add('active');
@@ -2638,12 +2702,24 @@ document.getElementById('restart-btn').addEventListener('click', startGame);
 document.getElementById('rpt-play-again').addEventListener('click', startGame);
 document.getElementById('sound-btn').addEventListener('click', toggleSound);
 document.getElementById('signin-btn').addEventListener('click', function() {
-  document.getElementById('gameover').classList.remove('active');
-  document.getElementById('capture-modal').classList.add('active');
+  if (localStorage.getItem('rcrun-email')) {
+    // Returning player — accumulate RC balance, post session, skip capture
+    var thisRun = G.session.grabs['RED COFFEE'] || 0;
+    var prev = parseInt(localStorage.getItem('rcrun-rc-balance') || '0');
+    localStorage.setItem('rcrun-rc-balance', (prev + thisRun).toString());
+    postSession();
+    document.getElementById('gameover').classList.remove('active');
+    showFullReport();
+  } else {
+    // New player — show capture modal
+    document.getElementById('gameover').classList.remove('active');
+    document.getElementById('capture-modal').classList.add('active');
+  }
 });
 
 // Init
 resetState();
+syncBalance();
 // Pre-render RC cup once fonts load
 if (document.fonts && document.fonts.ready) {
   document.fonts.ready.then(() => renderRCCupImage());
