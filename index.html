@@ -1206,26 +1206,38 @@ function postSession() {
   if (!email || !phone) return;
   var thisRun = G.session.grabs['RED COFFEE'] || 0;
   var archetype = classifyArchetype(G.session);
+  var payload = JSON.stringify({
+    type: 'session',
+    email: email,
+    phone: phone,
+    rc_count: thisRun,
+    session_id: G.session.session_id,
+    archetype: archetype.slug,
+    net_score: G.session.net,
+    survival_seconds: G.session.survival_seconds,
+    src: new URLSearchParams(window.location.search).get('src') || 'direct'
+  });
   fetch(ENDPOINT_URL, {
     method: 'POST',
     mode: 'no-cors',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      type: 'session',
-      email: email,
-      phone: phone,
-      rc_count: thisRun,
-      session_id: G.session.session_id,
-      archetype: archetype.slug,
-      net_score: G.session.net,
-      survival_seconds: G.session.survival_seconds,
-      src: new URLSearchParams(window.location.search).get('src') || 'direct'
-    })
+    body: payload
   }).then(function() {
     console.log('[Session] Posted. Syncing balance...');
     setTimeout(syncBalance, 1500);
   }).catch(function(err) {
-    console.error('[Session] Error:', err);
+    console.error('[Session] POST failed, retrying:', err);
+    fetch(ENDPOINT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: payload
+    }).then(function() {
+      console.log('[Session] Retry succeeded.');
+      setTimeout(syncBalance, 1500);
+    }).catch(function(err2) {
+      console.error('[Session] Retry also failed:', err2);
+    });
   });
 }
 
@@ -2198,6 +2210,8 @@ function computeScoring() {
   G.session.damage = totalDamage;
   G.session.repair = totalRepair;
   G.session.net = totalRepair - totalDamage;
+  // Sync liveNet so HUD, report, and POST all agree
+  G.liveNet = G.session.net;
 }
 
 function classifyArchetype(s) {
@@ -2699,8 +2713,14 @@ document.addEventListener('touchmove', (e) => {
 
 // Buttons
 document.getElementById('start-btn').addEventListener('click', startGame);
-document.getElementById('restart-btn').addEventListener('click', startGame);
-document.getElementById('rpt-play-again').addEventListener('click', startGame);
+document.getElementById('restart-btn').addEventListener('click', function() {
+  postSession();
+  startGame();
+});
+document.getElementById('rpt-play-again').addEventListener('click', function() {
+  postSession();
+  startGame();
+});
 document.getElementById('sound-btn').addEventListener('click', toggleSound);
 document.getElementById('signin-btn').addEventListener('click', function() {
   if (localStorage.getItem('rcrun-email') && localStorage.getItem('rcrun-phone')) {
