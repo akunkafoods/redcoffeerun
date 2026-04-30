@@ -1196,16 +1196,18 @@ const ENDPOINT_URL = 'https://script.google.com/macros/s/AKfycbxf6zHAdDlKxPpC3mS
 
 function postSession() {
   var email = localStorage.getItem('rcrun-email');
-  if (!email) return;
+  var phone = localStorage.getItem('rcrun-phone');
+  if (!email || !phone) return;
   var thisRun = G.session.grabs['RED COFFEE'] || 0;
   var archetype = classifyArchetype(G.session);
   fetch(ENDPOINT_URL, {
     method: 'POST',
-    mode: 'no-cors',
+    mode: 'cors',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       type: 'session',
       email: email,
+      phone: phone,
       rc_count: thisRun,
       session_id: G.session.session_id,
       archetype: archetype.slug,
@@ -1213,8 +1215,15 @@ function postSession() {
       survival_seconds: G.session.survival_seconds,
       src: new URLSearchParams(window.location.search).get('src') || 'direct'
     })
-  }).then(function() {
-    console.log('[Session] Posted.');
+  }).then(function(res) {
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }).then(function(data) {
+    if (typeof data.rc_balance === 'number') {
+      localStorage.setItem('rcrun-rc-balance', data.rc_balance.toString());
+      console.log('[Session] Posted. Server balance:', data.rc_balance);
+      renderWallet();
+    }
   }).catch(function(err) {
     console.error('[Session] Error:', err);
   });
@@ -1222,18 +1231,17 @@ function postSession() {
 
 function syncBalance() {
   var email = localStorage.getItem('rcrun-email');
-  if (!email) return;
-  fetch(ENDPOINT_URL + '?action=balance&email=' + encodeURIComponent(email), {
+  var phone = localStorage.getItem('rcrun-phone');
+  if (!email || !phone) return;
+  fetch(ENDPOINT_URL + '?action=balance&email=' + encodeURIComponent(email) + '&phone=' + encodeURIComponent(phone), {
     mode: 'cors'
   }).then(function(res) {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return res.json();
   }).then(function(data) {
     if (typeof data.rc_balance === 'number') {
-      var local = parseInt(localStorage.getItem('rcrun-rc-balance') || '0');
-      var best = Math.max(data.rc_balance, local);
-      localStorage.setItem('rcrun-rc-balance', best.toString());
-      console.log('[Balance] Server:', data.rc_balance, 'Local:', local, '→', best);
+      localStorage.setItem('rcrun-rc-balance', data.rc_balance.toString());
+      console.log('[Balance] Server:', data.rc_balance);
     }
   }).catch(function(err) {
     console.error('[Balance] Sync failed (using local):', err);
@@ -2256,16 +2264,17 @@ function submitCapture(data) {
 
   fetch(ENDPOINT_URL, {
     method: 'POST',
-    mode: 'no-cors',
+    mode: 'cors',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   }).then(function(res) {
-    if (res.type === 'opaque') {
-      console.log('[Capture] Sent (opaque response — Apps Script no-cors).');
-    } else if (res.ok) {
-      console.log('[Capture] Sent successfully.');
-    } else {
-      console.error('[Capture] Server returned', res.status);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }).then(function(data) {
+    if (typeof data.rc_balance === 'number') {
+      localStorage.setItem('rcrun-rc-balance', data.rc_balance.toString());
+      console.log('[Capture] Sent. Server balance:', data.rc_balance);
+      renderWallet();
     }
   }).catch(function(err) {
     console.error('[Capture] Network error:', err);
@@ -2273,9 +2282,7 @@ function submitCapture(data) {
 
   // Don't block UX — proceed immediately
   localStorage.setItem('rcrun-email', data.email);
-
-  const prev = parseInt(localStorage.getItem('rcrun-rc-balance') || '0');
-  localStorage.setItem('rcrun-rc-balance', (prev + thisRun).toString());
+  localStorage.setItem('rcrun-phone', data.phone);
 
   document.getElementById('capture-modal').classList.remove('active');
   showFullReport();
@@ -2311,11 +2318,6 @@ document.getElementById('capture-form').addEventListener('submit', function(e) {
 });
 
 document.getElementById('cap-skip').addEventListener('click', function() {
-  // Store RC balance even on skip
-  const thisRun = G.session.grabs['RED COFFEE'] || 0;
-  const prev = parseInt(localStorage.getItem('rcrun-rc-balance') || '0');
-  localStorage.setItem('rcrun-rc-balance', (prev + thisRun).toString());
-
   document.getElementById('capture-modal').classList.remove('active');
   showFullReport();
 });
@@ -2346,7 +2348,7 @@ function showStageA() {
 
   // Update CTA based on returning vs new player
   var signinBtn = document.getElementById('signin-btn');
-  if (localStorage.getItem('rcrun-email')) {
+  if (localStorage.getItem('rcrun-email') && localStorage.getItem('rcrun-phone')) {
     signinBtn.innerHTML = 'VIEW YOUR REPORT<br>& REDEEM RED COFFEES';
   } else {
     signinBtn.innerHTML = 'SIGN IN TO GET YOUR REPORT<br>& REDEEM RED COFFEES';
@@ -2523,8 +2525,9 @@ function renderBreakdown() {
 function renderWallet() {
   const el = document.getElementById('rpt-wallet');
   const thisRun = G.session.grabs['RED COFFEE'] || 0;
-  const lifetimeTotal = parseInt(localStorage.getItem('rcrun-rc-balance') || '0');
-  const previousTotal = lifetimeTotal - thisRun;
+  const serverBalance = parseInt(localStorage.getItem('rcrun-rc-balance') || '0');
+  const lifetimeTotal = serverBalance;
+  const previousTotal = Math.max(0, serverBalance - thisRun);
   const canRedeem = lifetimeTotal >= 10;
   const redeemValue = Math.min(lifetimeTotal, 100);
   const email = localStorage.getItem('rcrun-email') || '';
@@ -2702,11 +2705,8 @@ document.getElementById('restart-btn').addEventListener('click', startGame);
 document.getElementById('rpt-play-again').addEventListener('click', startGame);
 document.getElementById('sound-btn').addEventListener('click', toggleSound);
 document.getElementById('signin-btn').addEventListener('click', function() {
-  if (localStorage.getItem('rcrun-email')) {
-    // Returning player — accumulate RC balance, post session, skip capture
-    var thisRun = G.session.grabs['RED COFFEE'] || 0;
-    var prev = parseInt(localStorage.getItem('rcrun-rc-balance') || '0');
-    localStorage.setItem('rcrun-rc-balance', (prev + thisRun).toString());
+  if (localStorage.getItem('rcrun-email') && localStorage.getItem('rcrun-phone')) {
+    // Returning player — post session to server, skip capture
     postSession();
     document.getElementById('gameover').classList.remove('active');
     showFullReport();
