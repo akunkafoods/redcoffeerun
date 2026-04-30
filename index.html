@@ -784,6 +784,12 @@
     color: #888;
     font-style: italic;
   }
+  .rpt-wallet-email {
+    font-size: 11px;
+    color: #666;
+    margin-top: 10px;
+    letter-spacing: 0.5px;
+  }
   .rpt-wallet-redeem {
     font-family: 'Bangers', cursive;
     font-size: 14px;
@@ -2538,6 +2544,7 @@ function renderWallet() {
       <div class="rpt-wallet-collected">total collected</div>
       <div class="rpt-wallet-breakdown">${thisRun} this run + ${Math.max(0, previousTotal)} from before</div>
       ${statusHtml}
+      ${email ? '<div class="rpt-wallet-email">Signed in as ' + email + '</div>' : ''}
       <button class="rpt-wallet-redeem" id="rpt-redeem-btn" ${canRedeem ? '' : 'disabled'}>REDEEM ₹${redeemValue}</button>
     </div>
   `;
