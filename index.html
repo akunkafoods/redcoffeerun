@@ -1202,7 +1202,7 @@ function postSession() {
   var archetype = classifyArchetype(G.session);
   fetch(ENDPOINT_URL, {
     method: 'POST',
-    mode: 'cors',
+    mode: 'no-cors',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       type: 'session',
@@ -1215,15 +1215,9 @@ function postSession() {
       survival_seconds: G.session.survival_seconds,
       src: new URLSearchParams(window.location.search).get('src') || 'direct'
     })
-  }).then(function(res) {
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    return res.json();
-  }).then(function(data) {
-    if (typeof data.rc_balance === 'number') {
-      localStorage.setItem('rcrun-rc-balance', data.rc_balance.toString());
-      console.log('[Session] Posted. Server balance:', data.rc_balance);
-      renderWallet();
-    }
+  }).then(function() {
+    console.log('[Session] Posted. Syncing balance...');
+    setTimeout(syncBalance, 1500);
   }).catch(function(err) {
     console.error('[Session] Error:', err);
   });
@@ -1242,6 +1236,9 @@ function syncBalance() {
     if (typeof data.rc_balance === 'number') {
       localStorage.setItem('rcrun-rc-balance', data.rc_balance.toString());
       console.log('[Balance] Server:', data.rc_balance);
+      if (document.getElementById('report').classList.contains('active')) {
+        renderWallet();
+      }
     }
   }).catch(function(err) {
     console.error('[Balance] Sync failed (using local):', err);
@@ -2264,18 +2261,12 @@ function submitCapture(data) {
 
   fetch(ENDPOINT_URL, {
     method: 'POST',
-    mode: 'cors',
+    mode: 'no-cors',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
-  }).then(function(res) {
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    return res.json();
-  }).then(function(data) {
-    if (typeof data.rc_balance === 'number') {
-      localStorage.setItem('rcrun-rc-balance', data.rc_balance.toString());
-      console.log('[Capture] Sent. Server balance:', data.rc_balance);
-      renderWallet();
-    }
+  }).then(function() {
+    console.log('[Capture] Sent. Syncing balance...');
+    setTimeout(syncBalance, 1500);
   }).catch(function(err) {
     console.error('[Capture] Network error:', err);
   });
